@@ -1,0 +1,39 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Printer Dashboard</title>
+    <style>
+        body { font-family: sans-serif; margin: 30px; }
+        h1 { color: #333; }
+        .status { font-size: 1.2em; margin-bottom: 10px; }
+        .temp { font-size: 1.2em; margin-bottom: 20px; }
+        button { font-size: 1.1em; padding: 10px 20px; }
+    </style>
+    <script>
+function updateStatus() {
+  fetch('/data')
+    .then(response => response.json())
+    .then(data => {
+      document.getElementById('status').textContent = data.status;
+      document.getElementById('bed_temp').textContent = data.bed_temp + " °C";
+    });
+}
+
+setInterval(updateStatus, 3000); // elke 3 seconden
+</script>
+
+</head>
+<body>
+    <h1>🖨️ Printerstatus</h1>
+    <div class="status">Status: <strong id="status">{{ status }}</strong></div>
+    <div class="temp">Bedtemperatuur: <strong id="bed_temp">{{ bed_temp }} °C</strong></div>
+
+    <form method="POST">
+        <button type="submit">🧲 Schuif handmatig activeren</button>
+    </form>
+
+    <p style="margin-top:20px;">{{ message }}</p>
+    <p style="color: green;">{{ auto_trigger }}</p>
+</body>
+</html>
