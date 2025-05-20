@@ -1,39 +1,77 @@
-
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Printer Dashboard</title>
     <style>
         body { font-family: sans-serif; margin: 30px; }
-        h1 { color: #333; }
-        .status { font-size: 1.2em; margin-bottom: 10px; }
-        .temp { font-size: 1.2em; margin-bottom: 20px; }
-        button { font-size: 1.1em; padding: 10px 20px; }
+        .printer { border: 1px solid #ccc; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+        h2 { margin-top: 0; }
+        button { margin-top: 10px; padding: 8px 16px; }
     </style>
     <script>
-function updateStatus() {
-  fetch('/data')
-    .then(response => response.json())
-    .then(data => {
-      document.getElementById('status').textContent = data.status;
-      document.getElementById('bed_temp').textContent = data.bed_temp + " °C";
-    });
-}
+        function updatePrinters() {
+            fetch('/data')
+                .then(res => res.json())
+                .then(printers => {
+                    printers.forEach((printer) => {
+                        document.getElementById('status-' + printer.serial).textContent = printer.status;
+                        document.getElementById('temp-' + printer.serial).textContent = printer.bed_temp + ' °C';
+                    });
+                });
+        }
 
-setInterval(updateStatus, 3000); // elke 3 seconden
-</script>
+        function activate(serial) {
+            console.log("🧲 Activatie aangevraagd voor:", serial);
+            fetch('/activate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'serial=' + encodeURIComponent(serial)
+            })
+            .then(res => res.json())
+            .then(data => {
+                const msg = document.getElementById('msg-' + serial);
+                if (data.result === 'ok') {
+                    msg.textContent = '✅ Schuif geactiveerd!';
+                    msg.style.color = 'green';
+                } else if (data.result === 'fail') {
+                    msg.textContent = '❌ Fout bij activeren schuif.';
+                    msg.style.color = 'red';
+                } else {
+                    msg.textContent = '🔒 Alleen printer 1 werkt echt.';
+                    msg.style.color = 'orange';
+                }
+            });
+        }
 
+        setInterval(updatePrinters, 3000);
+    </script>
 </head>
 <body>
-    <h1>🖨️ Printerstatus</h1>
-    <div class="status">Status: <strong id="status">{{ status }}</strong></div>
-    <div class="temp">Bedtemperatuur: <strong id="bed_temp">{{ bed_temp }} °C</strong></div>
+    <h1>🖨️ Printer Dashboard</h1>
 
-    <form method="POST">
-        <button type="submit">🧲 Schuif handmatig activeren</button>
+    {% for p in printers %}
+    <div class="printer">
+        <h2>{{ p.name }}</h2>
+        <p>Status: <strong id="status-{{ p.serial }}">{{ p.status }}</strong></p>
+        <p>Bedtemperatuur: <strong id="temp-{{ p.serial }}">{{ p.bed_temp }} °C</strong></p>
+        <button onclick="activate('{{ p.serial }}')">🧲 Schuif activeren</button>
+        <form method="POST" action="/remove_printer" style="display:inline;">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+        <button type="submit" onclick="return confirm('Weet je zeker dat je {{ p.name }} wilt verwijderen?')">🗑️ Verwijder</button>
+        </form>
+        <p id="msg-{{ p.serial }}"></p>
+    </div>
+    {% endfor %}
+
+    <h2>➕ Printer toevoegen</h2>
+    <form method="POST" action="/add_printer">
+        <label>Naam: <input type="text" name="name" required></label><br>
+        <label>IP-adres: <input type="text" name="ip" required></label><br>
+        <label>Serienummer: <input type="text" name="serial" required></label><br>
+        <label>Access code: <input type="text" name="access_code" required></label><br>
+        <label>ESP IP-adres: <input type="text" name="esp_ip" required></label><br>
+        <button type="submit">Toevoegen</button>
     </form>
-
-    <p style="margin-top:20px;">{{ message }}</p>
-    <p style="color: green;">{{ auto_trigger }}</p>
 </body>
 </html>

@@ -1,53 +1,47 @@
 import paho.mqtt.client as mqtt
 import ssl
 import json
-from config import MQTT_BROKER, PRINTER_SERIAL
+import threading
 
-# ✅ vul hier je gegevens in
-MQTT_PORT = 8883
-MQTT_USERNAME = "bblp"
-MQTT_PASSWORD = "20217191"  # <-- vul in
-#CA_CERT_PATH = "ca_cert.pem"  # moet in dezelfde map staan als dit script
+class PrinterClient:
+    def __init__(self, printer):
+        self.printer = printer
+        self.client = mqtt.Client(protocol=mqtt.MQTTv311)
+        self.client.username_pw_set("bblp", printer["access_code"])
+        self.client.on_message = self.on_message
 
-shared_state = {
-    "status": "Onbekend",
-    "bed_temp": 0.0,
-    "print_klaar": False
-}
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        self.client.tls_set_context(context)
 
-def on_message(client, userdata, msg):
-    try:
-        data = json.loads(msg.payload.decode())
-        p = data.get("print", {})
+        self.topic = f"device/{printer['serial']}/report"
 
-        gcode_state = p.get("gcode_state", "")
-        bed_temp = p.get("bed_temper", None)
+    def on_message(self, client, userdata, msg):
+        try:
+            data = json.loads(msg.payload.decode())
+            p = data.get("print", {})
 
-        if gcode_state:
-            shared_state["status"] = gcode_state
-            if gcode_state in ["IDLE", "FINISH"]:
-                shared_state["print_klaar"] = True
+            bed_temp = p.get("bed_temper")
+            gcode_state = p.get("gcode_state", "")
 
-        if isinstance(bed_temp, (int, float)):
-            shared_state["bed_temp"] = round(bed_temp, 1)
-    except Exception as e:
-        print("❌ Fout bij verwerken MQTT:", e)
+            if isinstance(bed_temp, (int, float)):
+                self.printer["bed_temp"] = round(bed_temp, 1)
 
-def start_mqtt():
-    client = mqtt.Client(protocol=mqtt.MQTTv311)
-    client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+            if gcode_state:
+                self.printer["status"] = gcode_state
+                if gcode_state == "RUNNING":
+                    self.printer["heeft_geprint"] = True
 
-# ⛔ Verificatie uitzetten via custom SSLContext
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
+        except Exception as e:
+            print(f"❌ Fout bij {self.printer['name']}: {e}")
 
-    client.tls_set_context(context)
-
-    client.on_message = on_message
-    client.connect(MQTT_BROKER, MQTT_PORT)
-    topic = f"device/{PRINTER_SERIAL}/report"
-    client.subscribe(topic)
-    client.loop_start()
-
-
+    def start(self):
+        try:
+            self.client.connect(self.printer["ip"], 8883)
+            self.client.subscribe(self.topic)
+            self.printer["mqtt_client"] = self.client  # ⬅️ voeg dit toe
+            threading.Thread(target=self.client.loop_forever, daemon=True).start()
+            print(f"✅ MQTT gestart voor {self.printer['name']}")
+        except Exception as e:
+            print(f"❌ Kon geen verbinding maken met {self.printer['name']}: {e}")
