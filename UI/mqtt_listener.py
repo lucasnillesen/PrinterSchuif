@@ -29,9 +29,19 @@ class PrinterClient:
                 self.printer["bed_temp"] = round(bed_temp, 1)
 
             if gcode_state:
+                vorige_status = self.printer.get("status")
                 self.printer["status"] = gcode_state
+
                 if gcode_state == "RUNNING":
                     self.printer["heeft_geprint"] = True
+
+                if (
+                    self.printer["heeft_geprint"]
+                    and vorige_status == "RUNNING"
+                    and gcode_state in ["IDLE", "FINISH"]
+                ):
+                    print(f"📦 [{self.printer['name']}] Print klaar — wachten op afkoeling...")
+                    self.printer["klaar_wachten_op_koeling"] = True
 
         except Exception as e:
             print(f"❌ Fout bij {self.printer['name']}: {e}")
@@ -40,7 +50,7 @@ class PrinterClient:
         try:
             self.client.connect(self.printer["ip"], 8883)
             self.client.subscribe(self.topic)
-            self.printer["mqtt_client"] = self.client  # ⬅️ voeg dit toe
+            self.printer["mqtt_client"] = self.client
             threading.Thread(target=self.client.loop_forever, daemon=True).start()
             print(f"✅ MQTT gestart voor {self.printer['name']}")
         except Exception as e:

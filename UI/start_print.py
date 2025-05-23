@@ -33,6 +33,7 @@ def start_print(printer, filename):
     def on_connect(client, userdata, flags, rc):
         print(f"✅ Verbonden met {broker_ip} — print starten...")
         client.publish(topic, json.dumps(payload))
+        printer["heeft_geprint"] = True
         print(f"📨 Printopdracht verstuurd: {filename}")
 
     client.on_connect = on_connect
