@@ -2,15 +2,9 @@
   "01P00A3B2600141": [
     {
       "filename": "kleinblokje.gcode.3mf",
-      "count": 2,
+      "count": 3,
       "printed": 1,
       "status": "printing"
-    },
-    {
-      "filename": "blokje420.gcode.3mf",
-      "count": 2,
-      "printed": 0,
-      "status": "queued"
     }
   ]
 }

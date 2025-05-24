@@ -8,7 +8,7 @@ from config import BED_TEMP_THRESHOLD
 from mqtt_listener import PrinterClient
 from ftps import upload_file_to_printer, delete_file_from_printer
 from start_print import start_print
-from queue_manager import get_queue, add_to_queue, remove_from_queue, save_queue
+from queue_manager import get_queue, add_to_queue, remove_from_queue, save_queue, mark_current_done
 from printer_files import fetch_files_from_printer
 import threading
 import time
@@ -28,42 +28,43 @@ def start_auto_trigger(printer):
             huidige_status = printer["status"]
             vorige_status = printer.get("vorige_status")
 
-            # Zet 'heeft_geprint' op True als er geprint is
+            # 📌 Print is bezig
             if huidige_status == "PRINTING":
                 printer["heeft_geprint"] = True
 
-            # Print is net afgelopen → wachten op afkoeling
+            # 📦 Print net afgerond
             if (
                 printer["heeft_geprint"]
                 and vorige_status == "PRINTING"
-                and huidige_status in ["IDLE", "FINISH"]
+                and huidige_status in ["IDLE", "FINISH", "Onbekend"]
+                and not printer["klaar_wachten_op_koeling"]
             ):
-                print(f"📦 [{printer['name']}] Print afgerond, wachten op afkoeling...")
+                print(f"☑️ [{printer['name']}] Print afgerond, wachten op afkoeling...")
                 printer["klaar_wachten_op_koeling"] = True
 
-            # Wachten op afkoeling en bed is nu koel
-            if printer["klaar_wachten_op_koeling"] and printer["bed_temp"] <= BED_TEMP_THRESHOLD:
-                print(f"✅ [{printer['name']}] Bed afgekoeld — schuif activeren...")
+            # 🔪 Bed koel, schuif activeren
+            if (
+                printer["klaar_wachten_op_koeling"]
+                and printer["bed_temp"] <= BED_TEMP_THRESHOLD
+                and not printer["schuif_bezig"]
+                and not printer["schuif_vastgelopen"]
+                and not printer["schuif_commando_verstuurd"]
+            ):
+                print(f"🥲 [{printer['name']}] Bed koel genoeg, schuif activeren...")
                 success = schuif_aansturen(printer["esp_ip"])
                 if success:
-                    print("✅ Schuif automatisch gestart")
+                    printer["schuif_bezig"] = True
+                    printer["schuif_commando_verstuurd"] = True
+                    print("✅ Schuifcommando verzonden")
                 else:
-                    print("❌ Schuif automatisch starten mislukt")
-                    # Markeer huidige wachtrij-item als 'done'
-                queue = get_queue(printer["serial"])
-                if queue:
-                    current = queue[0]
-                    if current.get("status") == "printing":
-                        current["printed"] += 1
-                        current["status"] = "done"
-                        save_queue({printer["serial"]: queue})
-                        print(f"✅ [{printer['name']}] Print gemarkeerd als voltooid ({current['printed']}/{current['count']})")
+                    print("❌ Fout bij verzenden schuifcommando")
 
-                printer["klaar_wachten_op_koeling"] = False
-                printer["heeft_geprint"] = False
-
-            # ⬇️ Direct printen als printer IDLE is en klaar is met schuiven
-            if printer["status"] in ["IDLE", "FINISH"] and not printer["klaar_wachten_op_koeling"]:
+            # ▶️ Volgende print starten
+            if (
+                printer["status"] in ["IDLE", "FINISH", "Onbekend"]
+                and not printer["klaar_wachten_op_koeling"]
+                and not printer["schuif_bezig"]
+            ):
                 queue = get_queue(printer["serial"])
                 if queue:
                     current = queue[0]
@@ -77,11 +78,36 @@ def start_auto_trigger(printer):
                             print(f"❌ Fout bij automatisch starten: {e}")
 
             printer["vorige_status"] = huidige_status
-            print(f"[{printer['name']}] DEBUG: status={printer['status']} temp={printer['bed_temp']} wacht_op_afkoeling={printer['klaar_wachten_op_koeling']}")
+            print(f"[{printer['name']}] DEBUG: status={printer['status']} temp={printer['bed_temp']} wacht_op_afkoeling={printer['klaar_wachten_op_koeling']} schuif_bezig={printer['schuif_bezig']}")
             time.sleep(2)
 
     threading.Thread(target=loop, daemon=True).start()
 
+
+@app.route("/schuif_feedback", methods=["POST"])
+def schuif_feedback():
+    data = request.get_json(force=True)
+    status = data.get("status")
+    esp_ip = request.remote_addr
+
+    printer = next((p for p in printers if p["esp_ip"] == esp_ip), None)
+    if not printer:
+        print(f"❌ Geen printer gekoppeld aan IP: {esp_ip}")
+        return jsonify({"result": "printer not found for IP"}), 404
+
+    if status == "klaar":
+        printer["schuif_bezig"] = False
+        printer["klaar_wachten_op_koeling"] = False
+        printer["heeft_geprint"] = False
+        printer["schuif_commando_verstuurd"] = False
+        mark_current_done(printer["serial"])
+    elif status == "vast":
+        printer["schuif_bezig"] = False
+        printer["schuif_vastgelopen"] = True
+        printer["schuif_commando_verstuurd"] = False
+        print(f"❌ [{printer['name']}] Schuif vastgelopen!")
+
+    return jsonify({"result": "ok"})
 
 if os.path.exists(PRINTER_FILE):
     with open(PRINTER_FILE, "r") as f:
@@ -93,7 +119,10 @@ if os.path.exists(PRINTER_FILE):
                 "print_klaar": False,
                 "klaar_wachten_op_koeling": False,
                 "vorige_status": None,
-                "heeft_geprint": False
+                "heeft_geprint": False,
+                "schuif_bezig": False,
+                "schuif_vastgelopen": False,
+                "schuif_commando_verstuurd": False 
             })
             printers.append(p)
             PrinterClient(p).start()
@@ -118,7 +147,10 @@ def add_printer():
         "print_klaar": False,
         "klaar_wachten_op_koeling": False,
         "vorige_status": None,
-        "heeft_geprint": False
+        "heeft_geprint": False,
+        "schuif_bezig": False,
+        "schuif_vastgelopen": False,
+        "schuif_commando_verstuurd": False
     }
     printers.append(new_printer)
 
@@ -160,7 +192,7 @@ def start_queue():
     queue = get_queue(serial)
     print(f"🧪 Start wachtrij voor printer {printer['name']} — status={printer['status']} klaar_wachten_op_koeling={printer['klaar_wachten_op_koeling']}")
     print(f"📄 Wachtrij: {queue}")
-    if printer["status"] in ["IDLE", "FINISH", "Onbekend"] and not printer["klaar_wachten_op_koeling"]:
+    if printer["status"] in ["IDLE", "FINISH", "FAILED", "Onbekend"] and not printer["klaar_wachten_op_koeling"]:
         if queue:
             current = queue[0]
             if current["printed"] < current["count"] and current.get("status") != "printing":
@@ -178,13 +210,17 @@ def start_print_route():
     serial = request.form.get("serial")
     filename = request.form.get("filename")
     printer = next((p for p in printers if p["serial"] == serial), None)
+
     if not printer:
+        print("❌ Printer niet gevonden voor serial:", serial)
         return "❌ Printer niet gevonden", 404
     try:
         start_print(printer, filename)
         return redirect(url_for("index"))
     except Exception as e:
+        print(f"❌ Fout in start_print(): {e}")
         return f"❌ Fout bij printen: {e}", 500
+
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -250,4 +286,4 @@ def index():
     return render_template("index.html", printers=printers)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, host="0.0.0.0", port=5000)
