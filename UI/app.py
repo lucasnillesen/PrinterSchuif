@@ -46,9 +46,13 @@ def start_auto_trigger(printer):
                 printer["klaar_wachten_op_koeling"] = True
 
             # 🔪 Bed koel, schuif activeren
+            min_temp = BED_TEMP_THRESHOLD
+            if printer.get("queue") and printer["queue"]:
+                min_temp = printer["queue"][0].get("min_bed_temp", BED_TEMP_THRESHOLD)
+
             if (
                 printer["klaar_wachten_op_koeling"]
-                and printer["bed_temp"] <= BED_TEMP_THRESHOLD
+                and printer["bed_temp"] <= min_temp
                 and not printer["schuif_bezig"]
                 and not printer["schuif_vastgelopen"]
                 and not printer["schuif_commando_verstuurd"]
@@ -170,12 +174,39 @@ def add_printer():
     start_auto_trigger(new_printer)
     return redirect(url_for("index"))
 
+@app.route("/remove_printer", methods=["POST"])
+def remove_printer():
+    serial = request.form.get("serial")
+    if not serial:
+        return "❌ Geen serial opgegeven", 400
+
+    global printers
+    originele_lengte = len(printers)
+    printers = [p for p in printers if p["serial"] != serial]
+
+    if len(printers) == originele_lengte:
+        return "❌ Printer niet gevonden", 404
+
+    with open(PRINTER_FILE, "w") as f:
+        json.dump([{
+            "name": p["name"],
+            "ip": p["ip"],
+            "serial": p["serial"],
+            "access_code": p["access_code"],
+            "esp_ip": p["esp_ip"]
+        } for p in printers], f, indent=2)
+
+    print(f"🗑️ Printer met serial {serial} verwijderd.")
+    return redirect(url_for("index"))
+
+
 @app.route("/add_to_queue", methods=["POST"])
 def add_to_queue_route():
     serial = request.form["serial"]
     filename = request.form["filename"]
     count = int(request.form["count"])
-    add_to_queue(serial, filename, count)
+    min_bed_temp = float(request.form["min_bed_temp"])  # Nieuw veld
+    add_to_queue(serial, filename, count, min_bed_temp)
     return redirect(url_for("index"))
 
 @app.route("/remove_from_queue", methods=["POST"])
@@ -206,6 +237,46 @@ def start_queue():
                     start_print(printer, current["filename"])
                 except Exception as e:
                     return f"❌ Fout bij starten: {e}", 500
+    return redirect(url_for("index"))
+
+@app.route("/update_min_temp", methods=["POST"])
+def update_min_temp():
+    serial = request.form["serial"]
+    filename = request.form["filename"]
+    new_temp = float(request.form["min_bed_temp"])
+
+    queue = get_queue(serial)
+    for item in queue:
+        if item["filename"] == filename:
+            item["min_bed_temp"] = new_temp
+            break
+    save_queue({serial: queue})
+    return redirect(url_for("index"))
+
+@app.route("/move_up", methods=["POST"])
+def move_up():
+    serial = request.form["serial"]
+    filename = request.form["filename"]
+
+    queue = get_queue(serial)
+    for i in range(1, len(queue)):
+        if queue[i]["filename"] == filename:
+            queue[i - 1], queue[i] = queue[i], queue[i - 1]
+            break
+    save_queue({serial: queue})
+    return redirect(url_for("index"))
+
+@app.route("/move_down", methods=["POST"])
+def move_down():
+    serial = request.form["serial"]
+    filename = request.form["filename"]
+
+    queue = get_queue(serial)
+    for i in range(len(queue) - 1):
+        if queue[i]["filename"] == filename:
+            queue[i], queue[i + 1] = queue[i + 1], queue[i]
+            break
+    save_queue({serial: queue})
     return redirect(url_for("index"))
 
 @app.route("/start_print", methods=["POST"])

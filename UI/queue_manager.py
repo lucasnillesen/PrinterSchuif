@@ -20,16 +20,17 @@ def save_queue(data=None):
 def get_queue(serial):
     return queues.get(serial, [])
 
-def add_to_queue(serial, filename, count):
+def add_to_queue(serial, filename, count, min_bed_temp=35.0):
     if serial not in queues:
         queues[serial] = []
     queues[serial].append({
         "filename": filename,
         "count": count,
         "printed": 0,
-        "status": "waiting"
+        "status": "waiting",
+        "min_bed_temp": min_bed_temp
     })
-    save_queue()
+    save_queue(queues)
 
 def remove_from_queue(serial, filename):
     if serial in queues:

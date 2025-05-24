@@ -45,10 +45,11 @@
             <button type="submit">🧲 Schuif activeren</button>
         </form>
 
-        <form method="POST" action="/remove_printer" class="inline">
-            <input type="hidden" name="serial" value="{{ p.serial }}">
-            <button type="submit">🗑️ Verwijder printer</button>
+        <form method="POST" action="/remove_printer" class="inline" onsubmit="return confirm('Weet je zeker dat je printer {{ p.name }} wilt verwijderen?')">
+          <input type="hidden" name="serial" value="{{ p.serial }}">
+          <button type="submit">🗑️ Verwijder printer</button>
         </form>
+
 
         <!-- Printbestand uploaden -->
         <h4>📤 Printbestand uploaden</h4>
@@ -86,24 +87,62 @@
         <ul>
           {% if p.queue %}
             {% for item in p.queue %}
-              <li>{{ item.filename }} ({{ item.printed }}/{{ item.count }}) — {{ item.status }}
-                <form method="POST" action="/remove_from_queue" class="inline">
+              <li>
+                  <strong>{{ item.filename }}</strong> ({{ item.printed }}/{{ item.count }}) – {{ item.status }}<br>
+                  <em>Bed drempel:</em> {{ item.min_bed_temp }} °C
+
+                  <!-- Verwijderknop -->
+                  <form method="POST" action="/remove_from_queue" class="inline">
+                      <input type="hidden" name="serial" value="{{ p.serial }}">
+                      <input type="hidden" name="filename" value="{{ item.filename }}">
+                      <button type="submit">❌ Verwijder</button>
+                  </form>
+
+                  <!-- Omhoog -->
+                  <form method="POST" action="/move_up" class="inline">
                     <input type="hidden" name="serial" value="{{ p.serial }}">
                     <input type="hidden" name="filename" value="{{ item.filename }}">
-                    <button type="submit">❌ Verwijder</button>
-                </form>
-              </li>
+                    <button type="submit">🔼</button>
+                  </form>
+
+                  <!-- Omlaag -->
+                  <form method="POST" action="/move_down" class="inline">
+                    <input type="hidden" name="serial" value="{{ p.serial }}">
+                    <input type="hidden" name="filename" value="{{ item.filename }}">
+                    <button type="submit">🔽</button>
+                  </form>
+
+                  <!-- Wijzig drempel -->
+                  <form method="POST" action="/update_min_temp" class="inline">
+                    <input type="hidden" name="serial" value="{{ p.serial }}">
+                    <input type="hidden" name="filename" value="{{ item.filename }}">
+                    <input name="min_bed_temp" type="number" step="0.1" style="width: 80px;" placeholder="°C" required>
+                    <button type="submit">💾</button>
+                  </form>
+                </li>
+
             {% endfor %}
           {% else %}
             <li><em>Geen actieve wachtrij</em></li>
           {% endif %}
         </ul>
 
-        <form method="POST" action="/add_to_queue">
-            <input type="hidden" name="serial" value="{{ p.serial }}">
-            <input name="filename" placeholder="Bestandsnaam" required>
-            <input name="count" type="number" placeholder="Aantal prints" min="1" required>
-            <button type="submit">➕ Voeg toe aan wachtrij</button>
+    <form method="POST" action="/add_to_queue">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+
+        <select name="filename" required>
+            <option value="" disabled selected>Kies bestand...</option>
+            {% for f in p.files %}
+            <option value="{{ f }}">{{ f }}</option>
+            {% endfor %}
+       </select>
+
+        <input name="count" type="number" placeholder="Aantal prints" min="1" required>
+        <input name="min_bed_temp" type="number" placeholder="Bed drempel (°C)" step="0.1" value="35" required>
+
+        <button type="submit">➕ Voeg toe aan wachtrij</button>
+    </form>
+
         </form>
 
         <form method="POST" action="/start_queue">

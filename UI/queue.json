@@ -2,15 +2,24 @@
   "01P00A3B2600141": [
     {
       "filename": "kleinblokje.gcode.3mf",
-      "count": 3,
-      "printed": 2,
-      "status": "printing"
+      "count": 2,
+      "printed": 0,
+      "status": "printing",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "kleinblokje.gcode.3mf",
+      "count": 2,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 25.0
     },
     {
       "filename": "rechthoekje.gcode.3mf",
-      "count": 2,
+      "count": 1,
       "printed": 0,
-      "status": "waiting"
+      "status": "waiting",
+      "min_bed_temp": 25.0
     }
   ]
 }
