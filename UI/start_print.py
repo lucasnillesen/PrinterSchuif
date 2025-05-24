@@ -29,7 +29,6 @@ def start_print(printer, filename):
     client.username_pw_set("bblp", access_code)
     client.tls_set_context(context)
 
-    # Eventueel printen in terminal (voor debug)
     def on_connect(client, userdata, flags, rc):
         print(f"✅ Verbonden met {broker_ip} — print starten...")
         client.publish(topic, json.dumps(payload))

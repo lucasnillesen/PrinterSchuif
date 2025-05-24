@@ -31,6 +31,9 @@ def start_auto_trigger(printer):
             # 📌 Print is bezig
             if huidige_status == "PRINTING":
                 printer["heeft_geprint"] = True
+                printer["klaar_wachten_op_koeling"] = False
+                printer["schuif_bezig"] = False
+                printer["schuif_commando_verstuurd"] = False
 
             # 📦 Print net afgerond
             if (
@@ -55,6 +58,7 @@ def start_auto_trigger(printer):
                 if success:
                     printer["schuif_bezig"] = True
                     printer["schuif_commando_verstuurd"] = True
+                    printer["klaar_wachten_op_koeling"] = False
                     print("✅ Schuifcommando verzonden")
                 else:
                     print("❌ Fout bij verzenden schuifcommando")
@@ -78,9 +82,8 @@ def start_auto_trigger(printer):
                             print(f"❌ Fout bij automatisch starten: {e}")
 
             printer["vorige_status"] = huidige_status
-            print(f"[{printer['name']}] DEBUG: status={printer['status']} temp={printer['bed_temp']} wacht_op_afkoeling={printer['klaar_wachten_op_koeling']} schuif_bezig={printer['schuif_bezig']}")
             time.sleep(2)
-
+            print(f"[{printer['name']}] DEBUG: status={printer['status']} temp={printer['bed_temp']} wacht_op_afkoeling={printer['klaar_wachten_op_koeling']} schuif_bezig={printer['schuif_bezig']}")
     threading.Thread(target=loop, daemon=True).start()
 
 
@@ -102,7 +105,7 @@ def schuif_feedback():
         printer["schuif_commando_verstuurd"] = False
         mark_current_done(printer["serial"])
     elif status == "vast":
-        printer["schuif_bezig"] = False
+        printer["schuif_bezig"] = True
         printer["schuif_vastgelopen"] = True
         printer["schuif_commando_verstuurd"] = False
         print(f"❌ [{printer['name']}] Schuif vastgelopen!")

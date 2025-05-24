@@ -3,8 +3,14 @@
     {
       "filename": "kleinblokje.gcode.3mf",
       "count": 3,
-      "printed": 1,
+      "printed": 2,
       "status": "printing"
+    },
+    {
+      "filename": "rechthoekje.gcode.3mf",
+      "count": 2,
+      "printed": 0,
+      "status": "waiting"
     }
   ]
 }
