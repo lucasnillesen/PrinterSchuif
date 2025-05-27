@@ -30,7 +30,8 @@ def add_to_queue(serial, filename, count, min_bed_temp=35.0):
         "status": "waiting",
         "min_bed_temp": min_bed_temp
     })
-    save_queue(queues)
+    print(f"[DEBUG] Toegevoegd aan wachtrij: {filename} (temp: {min_bed_temp})")
+    save_queue()
 
 def remove_from_queue(serial, filename):
     if serial in queues:

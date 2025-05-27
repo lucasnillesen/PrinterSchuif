@@ -1,22 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Printer Dashboard</title>
-    <style>
-        body { font-family: sans-serif; margin: 30px; }
-        h1 { color: #333; }
-        .printer-card {
-            border: 1px solid #ccc;
-            padding: 15px;
-            margin-bottom: 30px;
-            border-radius: 8px;
-        }
-        .status, .temp { font-size: 1.1em; margin-bottom: 8px; }
-        button { font-size: 1em; padding: 6px 14px; margin-right: 8px; }
-        ul { padding-left: 20px; }
-        form.inline { display: inline; }
-    </style>
-    <script>
+  <title>Printer Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
     function updateStatus() {
       fetch('/data')
         .then(response => response.json())
@@ -24,56 +11,79 @@
           data.forEach((printer, index) => {
             document.getElementById('status-' + index).textContent = printer.status;
             document.getElementById('bed_temp-' + index).textContent = printer.bed_temp + " °C";
+            document.getElementById('progress-' + index).textContent = (printer.mc_percent || 0) + "%";
+            document.getElementById('progress-bar-' + index).style.width = (printer.mc_percent || 0) + "%";
           });
         });
     }
     setInterval(updateStatus, 3000);
-    </script>
+  </script>
 </head>
-<body>
-    <h1>🖨️ Printeroverzicht</h1>
+<body class="bg-gray-100 p-6">
+  <h1 class="text-3xl font-bold mb-6">📨 Printeroverzicht</h1>
 
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
     {% for p in printers %}
-    <div class="printer-card">
-        <h2>{{ p.name }}</h2>
-        <div class="status">Status: <strong id="status-{{ loop.index0 }}">{{ p.status }}</strong></div>
-        <div class="temp">Bedtemperatuur: <strong id="bed_temp-{{ loop.index0 }}">{{ p.bed_temp }} °C</strong></div>
+    <div class="bg-white shadow-md rounded-2xl p-6 border border-gray-200">
+      <h2 class="text-xl font-semibold mb-2">{{ p.name }}</h2>
 
-        <!-- Acties -->
-        <form method="POST" action="/activate" class="inline">
-            <input type="hidden" name="serial" value="{{ p.serial }}">
-            <button type="submit">🧲 Schuif activeren</button>
-        </form>
+      <div class="flex flex-wrap items-center gap-4 mb-4">
+        <span class="text-gray-600">Status:</span>
+        <span id="status-{{ loop.index0 }}" class="px-2 py-1 rounded-full text-sm font-medium
+          {% if p.status == 'RUNNING' %}bg-green-100 text-green-800
+          {% elif p.status == 'IDLE' %}bg-gray-100 text-gray-800
+          {% elif p.status == 'FINISH' %}bg-yellow-100 text-yellow-800
+          {% else %}bg-red-100 text-red-800{% endif %}">
+          {{ p.status }}
+        </span>
 
-        <form method="POST" action="/remove_printer" class="inline" onsubmit="return confirm('Weet je zeker dat je printer {{ p.name }} wilt verwijderen?')">
+        <span class="text-gray-600">🌡️ Bed:</span>
+        <span id="bed_temp-{{ loop.index0 }}" class="font-medium">{{ p.bed_temp }} °C</span>
+
+        <span class="text-gray-600">Voortgang:</span>
+        <span id="progress-{{ loop.index0 }}" class="font-medium">{{ p.mc_percent if p.mc_percent is defined else 0 }}%</span>
+      </div>
+
+      <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+        <div id="progress-bar-{{ loop.index0 }}" class="bg-blue-500 h-3 rounded-full" style="width: {{ p.mc_percent if p.mc_percent is defined else 0 }}%;"></div>
+      </div>
+
+      <div class="flex flex-wrap gap-2 mb-6">
+        <form method="POST" action="/activate">
           <input type="hidden" name="serial" value="{{ p.serial }}">
-          <button type="submit">🗑️ Verwijder printer</button>
+          <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Schuif activeren</button>
         </form>
 
-
-        <!-- Printbestand uploaden -->
-        <h4>📤 Printbestand uploaden</h4>
-        <form method="POST" enctype="multipart/form-data" action="/upload">
-            <input type="hidden" name="serial" value="{{ p.serial }}">
-            <input type="file" name="file" accept=".3mf" required>
-            <button type="submit">Upload</button>
+        <form method="POST" action="/remove_printer" onsubmit="return confirm('Weet je zeker dat je printer {{ p.name }} wilt verwijderen?')">
+          <input type="hidden" name="serial" value="{{ p.serial }}">
+          <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Verwijder printer</button>
         </form>
+      </div>
 
-        <!-- Bestanden op printer -->
-        <h4>📁 Bestanden op printer</h4>
-        <ul>
+      <div class="mb-6">
+        <h4 class="font-semibold mb-2">Printbestand uploaden</h4>
+        <form method="POST" enctype="multipart/form-data" action="/upload" class="flex flex-col gap-2 md:flex-row">
+          <input type="hidden" name="serial" value="{{ p.serial }}">
+          <input type="file" name="file" accept=".3mf" required class="border border-gray-300 rounded px-3 py-2">
+          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Upload</button>
+        </form>
+      </div>
+
+      <div class="mb-6">
+        <h4 class="font-semibold mb-2">Bestanden op printer</h4>
+        <ul class="list-disc list-inside space-y-1">
           {% if p.files %}
             {% for f in p.files %}
               <li>{{ f }}
                 <form method="POST" action="/start_print" class="inline">
-                    <input type="hidden" name="serial" value="{{ p.serial }}">
-                    <input type="hidden" name="filename" value="{{ f }}">
-                    <button type="submit">🖨️ Print</button>
+                  <input type="hidden" name="serial" value="{{ p.serial }}">
+                  <input type="hidden" name="filename" value="{{ f }}">
+                  <button type="submit" class="text-blue-600 hover:underline ml-2">Print</button>
                 </form>
                 <form method="POST" action="/delete_file" class="inline">
-                    <input type="hidden" name="serial" value="{{ p.serial }}">
-                    <input type="hidden" name="filename" value="{{ f }}">
-                    <button type="submit">🗑️ Verwijder</button>
+                  <input type="hidden" name="serial" value="{{ p.serial }}">
+                  <input type="hidden" name="filename" value="{{ f }}">
+                  <button type="submit" class="text-red-600 hover:underline ml-2">Verwijder</button>
                 </form>
               </li>
             {% endfor %}
@@ -81,86 +91,79 @@
             <li><em>Geen bestanden gevonden</em></li>
           {% endif %}
         </ul>
+      </div>
 
-        <!-- Wachtrij -->
-        <h4>📋 Wachtrij</h4>
-        <ul>
+      <div class="mb-6">
+        <h4 class="font-semibold mb-2">Wachtrij</h4>
+        <ul class="space-y-2">
           {% if p.queue %}
             {% for item in p.queue %}
-              <li>
-                  <strong>{{ item.filename }}</strong> ({{ item.printed }}/{{ item.count }}) – {{ item.status }}<br>
-                  <em>Bed drempel:</em> {{ item.min_bed_temp }} °C
-
-                  <!-- Verwijderknop -->
-                  <form method="POST" action="/remove_from_queue" class="inline">
-                      <input type="hidden" name="serial" value="{{ p.serial }}">
-                      <input type="hidden" name="filename" value="{{ item.filename }}">
-                      <button type="submit">❌ Verwijder</button>
+              <li class="bg-gray-50 p-2 rounded">
+                <div><strong>{{ item.filename }}</strong> ({{ item.printed }}/{{ item.count }}) – {{ item.status }}</div>
+                <div class="text-sm text-gray-500">Bed drempel: {{ item.min_bed_temp }} °C</div>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  <form method="POST" action="/remove_from_queue">
+                    <input type="hidden" name="serial" value="{{ p.serial }}">
+                    <input type="hidden" name="filename" value="{{ item.filename }}">
+                    <button type="submit" class="text-red-600 hover:underline">❌ Verwijder</button>
                   </form>
-
-                  <!-- Omhoog -->
-                  <form method="POST" action="/move_up" class="inline">
+                  <form method="POST" action="/move_up">
                     <input type="hidden" name="serial" value="{{ p.serial }}">
                     <input type="hidden" name="filename" value="{{ item.filename }}">
                     <button type="submit">🔼</button>
                   </form>
-
-                  <!-- Omlaag -->
-                  <form method="POST" action="/move_down" class="inline">
+                  <form method="POST" action="/move_down">
                     <input type="hidden" name="serial" value="{{ p.serial }}">
                     <input type="hidden" name="filename" value="{{ item.filename }}">
                     <button type="submit">🔽</button>
                   </form>
-
-                  <!-- Wijzig drempel -->
-                  <form method="POST" action="/update_min_temp" class="inline">
+                  <form method="POST" action="/update_min_temp" class="flex items-center gap-1">
                     <input type="hidden" name="serial" value="{{ p.serial }}">
                     <input type="hidden" name="filename" value="{{ item.filename }}">
-                    <input name="min_bed_temp" type="number" step="0.1" style="width: 80px;" placeholder="°C" required>
-                    <button type="submit">💾</button>
+                    <input name="min_bed_temp" type="number" step="0.1" placeholder="°C" required class="w-20 border rounded px-1">
+                    <button type="submit">Temperatuur Aanpassen</button>
                   </form>
-                </li>
-
+                </div>
+              </li>
             {% endfor %}
           {% else %}
             <li><em>Geen actieve wachtrij</em></li>
           {% endif %}
         </ul>
+      </div>
 
-    <form method="POST" action="/add_to_queue">
+      <form method="POST" action="/add_to_queue" class="mb-4 flex flex-col gap-2">
         <input type="hidden" name="serial" value="{{ p.serial }}">
+        <select name="filename" required class="border border-gray-300 rounded px-2 py-1">
+          <option value="" disabled selected>Kies bestand...</option>
+          {% for f in p.files %}
+          <option value="{{ f }}">{{ f }}</option>
+          {% endfor %}
+        </select>
+        <input name="count" type="number" placeholder="Aantal prints" min="1" required class="border border-gray-300 rounded px-2 py-1">
+        <input name="min_bed_temp" type="number" placeholder="Bed drempel (°C)" step="0.1" value="35" required class="border border-gray-300 rounded px-2 py-1">
+        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Voeg toe aan wachtrij</button>
+      </form>
 
-        <select name="filename" required>
-            <option value="" disabled selected>Kies bestand...</option>
-            {% for f in p.files %}
-            <option value="{{ f }}">{{ f }}</option>
-            {% endfor %}
-       </select>
-
-        <input name="count" type="number" placeholder="Aantal prints" min="1" required>
-        <input name="min_bed_temp" type="number" placeholder="Bed drempel (°C)" step="0.1" value="35" required>
-
-        <button type="submit">➕ Voeg toe aan wachtrij</button>
-    </form>
-
-        </form>
-
-        <form method="POST" action="/start_queue">
-            <input type="hidden" name="serial" value="{{ p.serial }}">
-            <button type="submit">▶️ Start wachtrij</button>
-        </form>
+      <form method="POST" action="/start_queue">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">Start wachtrij</button>
+      </form>
     </div>
     {% endfor %}
+  </div>
 
-    <hr>
-    <h2>➕ Printer toevoegen</h2>
-    <form method="POST" action="/add_printer">
-        <input name="name" placeholder="Naam" required>
-        <input name="ip" placeholder="IP-adres" required>
-        <input name="serial" placeholder="Serienummer" required>
-        <input name="access_code" placeholder="Access code" required>
-        <input name="esp_ip" placeholder="ESP IP" required>
-        <button type="submit">Toevoegen</button>
-    </form>
+  <hr class="my-10">
+  <h2 class="text-2xl font-bold mb-4">➕ Printer toevoegen</h2>
+  <form method="POST" action="/add_printer" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+    <input name="name" placeholder="Naam" required class="border border-gray-300 rounded px-3 py-2">
+    <input name="ip" placeholder="IP-adres" required class="border border-gray-300 rounded px-3 py-2">
+    <input name="serial" placeholder="Serienummer" required class="border border-gray-300 rounded px-3 py-2">
+    <input name="access_code" placeholder="Access code" required class="border border-gray-300 rounded px-3 py-2">
+    <input name="esp_ip" placeholder="ESP IP" required class="border border-gray-300 rounded px-3 py-2">
+    <div class="md:col-span-2">
+      <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">Toevoegen</button>
+    </div>
+  </form>
 </body>
 </html>

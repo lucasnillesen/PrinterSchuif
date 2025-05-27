@@ -24,6 +24,9 @@ class PrinterClient:
 
             bed_temp = p.get("bed_temper")
             gcode_state = p.get("gcode_state", "")
+            mc_percent = p.get("mc_percent")
+            if isinstance(mc_percent, int):
+                self.printer["mc_percent"] = mc_percent
 
             if isinstance(bed_temp, (int, float)):
                 self.printer["bed_temp"] = round(bed_temp, 1)
@@ -55,3 +58,11 @@ class PrinterClient:
             print(f"✅ MQTT gestart voor {self.printer['name']}")
         except Exception as e:
             print(f"❌ Kon geen verbinding maken met {self.printer['name']}: {e}")
+
+    def stop(self):
+        try:
+            self.client.disconnect()
+            self.client.loop_stop()
+            print(f"⛔️ MQTT gestopt voor {self.printer['name']}")
+        except Exception as e:
+            print(f"❌ Fout bij stoppen van MQTT voor {self.printer['name']}: {e}")

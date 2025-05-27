@@ -47,8 +47,12 @@ def start_auto_trigger(printer):
 
             # 🔪 Bed koel, schuif activeren
             min_temp = BED_TEMP_THRESHOLD
-            if printer.get("queue") and printer["queue"]:
-                min_temp = printer["queue"][0].get("min_bed_temp", BED_TEMP_THRESHOLD)
+            queue = get_queue(printer["serial"])
+            if queue:
+                min_temp = queue[0].get("min_bed_temp", BED_TEMP_THRESHOLD)
+            else:
+                min_temp = BED_TEMP_THRESHOLD
+
 
             if (
                 printer["klaar_wachten_op_koeling"]
@@ -132,7 +136,9 @@ if os.path.exists(PRINTER_FILE):
                 "schuif_commando_verstuurd": False 
             })
             printers.append(p)
-            PrinterClient(p).start()
+            mqtt_instance = PrinterClient(p)
+            mqtt_instance.start()
+            p["mqtt_client_instance"] = mqtt_instance
             start_auto_trigger(p)
 
 @app.route("/add_printer", methods=["POST"])
@@ -170,7 +176,9 @@ def add_printer():
             "esp_ip": p["esp_ip"]
         } for p in printers], f, indent=2)
 
-    PrinterClient(new_printer).start()
+    mqtt_instance = PrinterClient(new_printer)
+    mqtt_instance.start()
+    new_printer["mqtt_client_instance"] = mqtt_instance
     start_auto_trigger(new_printer)
     return redirect(url_for("index"))
 
@@ -181,12 +189,23 @@ def remove_printer():
         return "❌ Geen serial opgegeven", 400
 
     global printers
-    originele_lengte = len(printers)
-    printers = [p for p in printers if p["serial"] != serial]
 
-    if len(printers) == originele_lengte:
+    # 📌 Zoek de printer die verwijderd moet worden
+    printer = next((p for p in printers if p["serial"] == serial), None)
+    if not printer:
         return "❌ Printer niet gevonden", 404
 
+    # ✅ Stop de MQTT-client als die er is
+    if "mqtt_client_instance" in printer:
+        try:
+            printer["mqtt_client_instance"].stop()
+        except Exception as e:
+            print(f"⚠️ Fout bij stoppen van MQTT-client: {e}")
+
+    # 🗑️ Verwijder de printer uit de lijst
+    printers = [p for p in printers if p["serial"] != serial]
+
+    # 💾 Werk het json-bestand bij
     with open(PRINTER_FILE, "w") as f:
         json.dump([{
             "name": p["name"],
@@ -196,8 +215,9 @@ def remove_printer():
             "esp_ip": p["esp_ip"]
         } for p in printers], f, indent=2)
 
-    print(f"🗑️ Printer met serial {serial} verwijderd.")
+    print(f"🗑️ Printer met serial {serial} verwijderd en MQTT gestopt.")
     return redirect(url_for("index"))
+
 
 
 @app.route("/add_to_queue", methods=["POST"])
@@ -348,7 +368,8 @@ def data():
             "name": p["name"],
             "serial": p["serial"],
             "status": p["status"],
-            "bed_temp": p["bed_temp"]
+            "bed_temp": p["bed_temp"],
+            "mc_percent": p.get("mc_percent", 0)
         })
     return jsonify(simplified)
 
