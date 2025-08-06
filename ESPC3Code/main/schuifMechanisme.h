@@ -3,6 +3,8 @@
 
 void schuifMechanisme();
 void initSchuifMechanisme();
+void deurOpen();
+void deurDicht();
 void resetSGBuffer();
 uint16_t getAverageX();
 uint16_t getAverageY();

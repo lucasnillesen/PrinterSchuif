@@ -3,7 +3,7 @@ import json
 import base64
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 from werkzeug.utils import secure_filename
-from controller import schuif_aansturen
+from controller import schuif_aansturen, deur_openen, deur_dicht
 from config import BED_TEMP_THRESHOLD
 from mqtt_listener import PrinterClient
 from ftps import upload_file_to_printer, delete_file_from_printer
@@ -11,6 +11,7 @@ from start_print import start_print
 from queue_manager import get_queue, add_to_queue, remove_from_queue, save_queue, mark_current_done
 from printer_files import fetch_files_from_printer
 import threading
+import requests
 import time
 
 UPLOAD_FOLDER = "uploads"
@@ -42,8 +43,14 @@ def start_auto_trigger(printer):
                 and huidige_status in ["IDLE", "FINISH", "Onbekend"]
                 and not printer["klaar_wachten_op_koeling"]
             ):
-                print(f"☑️ [{printer['name']}] Print afgerond, wachten op afkoeling...")
+                print(f"☑️ [{printer['name']}] Print afgerond, wachten op afkoeling nu op dit moment...")
+                success = deur_openen(printer["esp_ip"])
+                if success:
+                    print(f"✅ [{printer['name']}] Deur open commando verzonden")
+                else:
+                    print(f"❌ [{printer['name']}] Fout bij deur openen")
                 printer["klaar_wachten_op_koeling"] = True
+                
 
             # 🔪 Bed koel, schuif activeren
             min_temp = BED_TEMP_THRESHOLD
@@ -61,7 +68,7 @@ def start_auto_trigger(printer):
                 and not printer["schuif_vastgelopen"]
                 and not printer["schuif_commando_verstuurd"]
             ):
-                print(f"🥲 [{printer['name']}] Bed koel genoeg, schuif activeren...")
+                print(f" [{printer['name']}] Bed koel genoeg, schuif activeren...")
                 success = schuif_aansturen(printer["esp_ip"])
                 if success:
                     printer["schuif_bezig"] = True
@@ -111,6 +118,7 @@ def schuif_feedback():
         printer["klaar_wachten_op_koeling"] = False
         printer["heeft_geprint"] = False
         printer["schuif_commando_verstuurd"] = False
+        deur_dicht(printer["esp_ip"])
         mark_current_done(printer["serial"])
     elif status == "vast":
         printer["schuif_bezig"] = True
@@ -218,7 +226,27 @@ def remove_printer():
     print(f"🗑️ Printer met serial {serial} verwijderd en MQTT gestopt.")
     return redirect(url_for("index"))
 
+@app.route("/deur_openen", methods=["POST"])
+def deur_openen_route():
+    serial = request.form["serial"]
+    printer = next((p for p in printers if p["serial"] == serial), None)
+    if printer:
+        try:
+            requests.get(f"http://{printer['esp_ip']}/deur_open", timeout=2)
+        except Exception as e:
+            print(f"❌ Fout bij openen deur: {e}")
+    return redirect(url_for("index"))
 
+@app.route("/deur_sluiten", methods=["POST"])
+def deur_sluiten_route():
+    serial = request.form["serial"]
+    printer = next((p for p in printers if p["serial"] == serial), None)
+    if printer:
+        try:
+            requests.get(f"http://{printer['esp_ip']}/deur_dicht", timeout=2)
+        except Exception as e:
+            print(f"❌ Fout bij sluiten deur: {e}")
+    return redirect(url_for("index"))
 
 @app.route("/add_to_queue", methods=["POST"])
 def add_to_queue_route():
@@ -378,6 +406,11 @@ def index():
     for p in printers:
         p["files"] = fetch_files_from_printer(p["ip"], "bblp", p["access_code"])
         p["queue"] = get_queue(p["serial"])
+        try:
+            resp = requests.get(f"http://{p['esp_ip']}/deur_status", timeout=1)
+            p["deur_status"] = resp.json().get("deur_status", "onbekend")
+        except:
+            p["deur_status"] = "niet bereikbaar"
     return render_template("index.html", printers=printers)
 
 if __name__ == "__main__":

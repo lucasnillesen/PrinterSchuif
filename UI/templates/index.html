@@ -60,6 +60,19 @@
         </form>
       </div>
 
+      <form action="/deur_openen" method="post" style="display:inline;">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+        <button type="submit" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600"> Deur openen</button>
+      </form>
+
+      <form action="/deur_sluiten" method="post" style="display:inline;">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+        <button type="submit" class="bg-yellow-700 text-white px-4 py-2 rounded-lg hover:bg-yellow-800"> Deur sluiten</button>
+      </form>
+
+      <p>Deurstatus: <strong>{{ p.deur_status }}</strong></p>
+
+
       <div class="mb-6">
         <h4 class="font-semibold mb-2">Printbestand uploaden</h4>
         <form method="POST" enctype="multipart/form-data" action="/upload" class="flex flex-col gap-2 md:flex-row">

@@ -1,3 +1,4 @@
+from controller import deur_openen
 import paho.mqtt.client as mqtt
 import ssl
 import json
@@ -44,6 +45,13 @@ class PrinterClient:
                     and gcode_state in ["IDLE", "FINISH"]
                 ):
                     print(f"📦 [{self.printer['name']}] Print klaar — wachten op afkoeling...")
+    
+                    success = deur_openen(self.printer["esp_ip"])
+                    if success:
+                        print(f"✅ [{self.printer['name']}] Deur open commando verzonden")
+                    else:
+                        print(f"❌ [{self.printer['name']}] Fout bij deur openen")
+
                     self.printer["klaar_wachten_op_koeling"] = True
 
         except Exception as e:

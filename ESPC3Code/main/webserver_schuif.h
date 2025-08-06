@@ -4,6 +4,10 @@
 void setupWebServer();
 void handleWebServer();
 void handleSchuif();
+void handleDeurDicht();
+void handleDeurOpen();
+void handleDeurStatus();
+void checkWiFi();
 void schuifKlaarMelden(bool success);
 void schuifStarted();
 

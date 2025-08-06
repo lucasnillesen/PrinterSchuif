@@ -5,6 +5,9 @@
 
 extern bool schuifStart;
 extern int state;
+bool deurIsOpen = false;
+extern void deurOpen();
+extern void deurDicht();
 
 const char* ssid = "robert";
 const char* password = "dakterras1234";
@@ -19,6 +22,23 @@ void handleSchuif() {
   schuifStart = true;
   state = 0;
   server.send(200, "text/plain", "Schuif geactiveerd via WiFi");
+}
+
+void handleDeurOpen() {
+  Serial.println("📡 Webverzoek ontvangen: deur openen");
+  deurOpen();
+  server.send(200, "text/plain", "Deur geopend");
+}
+
+void handleDeurDicht() {
+  Serial.println("📡 Webverzoek ontvangen: deur dichtmaken");
+  deurDicht();
+  server.send(200, "text/plain", "Deur dicht");
+}
+
+void handleDeurStatus() {
+  String json = String("{\"deur_status\":\"") + (deurIsOpen ? "open" : "dicht") + "\"}";
+  server.send(200, "application/json", json);
 }
 
 void schuifStarted() {
@@ -80,8 +100,31 @@ void setupWebServer() {
   Serial.println(WiFi.localIP());
 
   server.on("/push", handleSchuif);
+  server.on("/deur_open", handleDeurOpen);
+  server.on("/deur_dicht", handleDeurDicht);
+  server.on("/deur_status", handleDeurStatus);
   server.begin();
   Serial.println("🌐 Webserver gestart");
+}
+
+void checkWiFi() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("📶 WiFi verbroken. Probeer opnieuw te verbinden...");
+    WiFi.disconnect();
+    WiFi.begin(ssid, password);
+    unsigned long startAttemptTime = millis();
+
+    while (WiFi.status() != WL_CONNECTED && millis() - startAttemptTime < 10000) {
+      delay(500);
+      Serial.print(".");
+    }
+
+    if (WiFi.status() == WL_CONNECTED) {
+      Serial.println("\n✅ Opnieuw verbonden met WiFi!");
+    } else {
+      Serial.println("\n❌ Kon geen verbinding maken.");
+    }
+  }
 }
 
 void handleWebServer() {

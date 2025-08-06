@@ -9,6 +9,8 @@ const int deurPin = 5;
 const int DEUR_OPEN = 140;
 const int DEUR_DICHT = 10;
 
+extern bool deurIsOpen;
+
 // Y-as (hoogte)
 #define STEP_PIN_Y 10
 #define DIR_PIN_Y 2
@@ -176,13 +178,14 @@ void schuifMechanisme() {
         Serial.println("Setup compleet");
 
         deurslot.write(DEUR_OPEN);
+        deurIsOpen = true;
         delay(500);
 
         stepperY.setMaxSpeed(10000);
         stepperX.setMaxSpeed(10000);
         stepperY.setAcceleration(2000);
         stepperX.setAcceleration(2000);
-        
+
 
         stepperY.moveTo(-1000000);  // Start omhoog
 
@@ -236,7 +239,7 @@ void schuifMechanisme() {
         }
         break;
 
-            case OMLAAG:
+      case OMLAAG:
         if (!impactMonitoringY && millis() - motionStart > 3000) {
           impactMonitoringY = true;
           Serial.println("[Y] Impactdetectie actief tijdens omlaag.");
@@ -248,7 +251,7 @@ void schuifMechanisme() {
           // Impact detectie, nu eerst extra verificatie
           stepperY.stop();
           stepperY.setCurrentPosition(stepperY.currentPosition());
-          delay(150); // kleine rust
+          delay(150);  // kleine rust
 
           // ➕ Extra terugduw en SG controle
           const int terugStappen = 1000;
@@ -337,27 +340,40 @@ void schuifMechanisme() {
           break;
         }
       case TERUG:
-      {
-      bool switchYActief = digitalRead(LIMIT_SWITCH_Y_PIN) == HIGH;
-        if (switchYActief) {
-          Serial.println("Schuif is terug");
-          stepperY.stop();
-          stepperY.setCurrentPosition(stepperY.currentPosition());
-          delay(200);
-          deurslot.write(DEUR_DICHT);
-          delay(500);
-          schuifKlaarMelden(true);
-          bezig = false;
-          schuifVastgemeld = false;
-          impactMonitoringY = false;
-          impactMonitoringX = false;
-          schuifStart = false;
-          resetSGBuffer();
-          fase = BEGIN;
-          motionStart = millis();
+        {
+          bool switchYActief = digitalRead(LIMIT_SWITCH_Y_PIN) == HIGH;
+          if (switchYActief) {
+            Serial.println("Schuif is terug");
+            stepperY.stop();
+            stepperY.setCurrentPosition(stepperY.currentPosition());
+            delay(200);
+            deurslot.write(DEUR_DICHT);
+            deurIsOpen = false;
+            delay(500);
+            schuifKlaarMelden(true);
+            bezig = false;
+            schuifVastgemeld = false;
+            impactMonitoringY = false;
+            impactMonitoringX = false;
+            schuifStart = false;
+            resetSGBuffer();
+            fase = BEGIN;
+            motionStart = millis();
+          }
+          break;
         }
-        break;
     }
   }
 }
+
+void deurOpen() {
+  deurslot.write(DEUR_OPEN);
+  deurIsOpen = true;
+  delay(500);
+}
+
+void deurDicht() {
+  deurslot.write(DEUR_DICHT);
+  deurIsOpen = false;
+  delay(500);
 }

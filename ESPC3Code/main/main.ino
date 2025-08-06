@@ -15,6 +15,7 @@ void setup() {
 
 void loop() {
   handleWebServer();
+  checkWiFi();
 
   if (schuifStart) {
     schuifMechanisme();
