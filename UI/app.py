@@ -53,10 +53,16 @@ def start_auto_trigger(printer):
                 
 
             # 🔪 Bed koel, schuif activeren
-            min_temp = BED_TEMP_THRESHOLD
             queue = get_queue(printer["serial"])
             if queue:
-                min_temp = queue[0].get("min_bed_temp", BED_TEMP_THRESHOLD)
+                print(f"[{printer['name']}] Queue[0] = {queue[0]}")
+                print(f"[{printer['name']}] min_bed_temp = {queue[0].get('min_bed_temp')}")
+                print(f"[{printer['name']}] bed_temp = {printer['bed_temp']}")
+                print(f"[{printer['name']}] BED_TEMP_THRESHOLD = {BED_TEMP_THRESHOLD}")
+            try:
+                min_temp = float(queue[0].get("min_bed_temp", BED_TEMP_THRESHOLD))
+            except:
+                min_temp = BED_TEMP_THRESHOLD
             else:
                 min_temp = BED_TEMP_THRESHOLD
 
