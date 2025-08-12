@@ -85,22 +85,51 @@ class BolOrderWatcher:
                             continue
                         ean = item.get("ean")
                         qty = item.get("quantity", 1)
-
                         if ean and ean in mapping:
-                            filename = mapping[ean]
-                            try:
-                                # add_to_queue(serial, filename, count, min_bed_temp=35.0)
-                                add_to_queue(self.printer_serial, filename, qty, self.min_bed_temp)
-                                save_queue()
-                                print(f"✅ Nieuwe bestelling → wachtrij: {filename} x{qty} (EAN {ean}, item {iid})")
-                                actions += 1
-                            except Exception as e:
-                                print(f"⚠️ Kon item niet toevoegen aan wachtrij: {e}")
+                            entry = mapping[ean]
+                            if isinstance(entry, dict):
+                                filename = entry.get("filename")
+                                target_serial = entry.get("printer_serial") or self.printer_serial
+                            else:
+                                filename = entry
+                                target_serial = self.printer_serial
+                        
+                            if filename:
+                                try:
+                                    add_to_queue(target_serial, filename, qty, self.min_bed_temp)
+                                    save_queue()
+                                    print(f"✅ Nieuwe bestelling → {filename} x{qty} → wachtrij printer {target_serial} (EAN {ean}, item {iid})")
+                                    # (history) late import om import-issues te voorkomen
+                                    try:
+                                        from history import append_history
+                                        append_history({
+                                            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                                            "orderItemId": iid,
+                                            "ean": ean,
+                                            "filename": filename,
+                                            "quantity": qty,
+                                            "printer_serial": target_serial,
+                                        })
+                                    except Exception as _hist_e:
+                                        print(f"ℹ️ History log skipped: {_hist_e}")
+                                except Exception as e:
+                                    print(f"⚠️ Kon item niet toevoegen aan wachtrij: {e}")
+                            else:
+                                print(f"⚠️ Mapping zonder filename voor EAN {ean}")
                         else:
                             if ean:
                                 print(f"⚠️ Geen mapping voor EAN {ean} (orderItemId {iid})")
                             else:
                                 print(f"⚠️ Ontbrekende EAN voor orderItemId {iid}")
+                        from history import append_history
+                        append_history({
+                            "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                            "orderItemId": iid,
+                            "ean": ean,
+                            "filename": filename,
+                            "quantity": qty,
+                            "printer_serial": self.printer_serial,
+                        })
 
                         new_processed.add(iid)
 

@@ -1,182 +1,297 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Printer Dashboard</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    function updateStatus() {
-      fetch('/data')
-        .then(response => response.json())
-        .then(data => {
-          data.forEach((printer, index) => {
-            document.getElementById('status-' + index).textContent = printer.status;
-            document.getElementById('bed_temp-' + index).textContent = printer.bed_temp + " °C";
-            document.getElementById('progress-' + index).textContent = (printer.mc_percent || 0) + "%";
-            document.getElementById('progress-bar-' + index).style.width = (printer.mc_percent || 0) + "%";
-          });
+{% extends "layout.html" %}
+
+{% block nav_actions %}
+<button id="openAddPrinter" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+  Printer Toevoegen 
+</button>
+{% endblock %}
+
+{% block title %}Printeroverzicht{% endblock %}
+
+{% block content %}
+<script>
+  function updateStatus() {
+    fetch('/data')
+      .then(r => r.json())
+      .then(data => {
+        data.forEach((printer, index) => {
+          const s = document.getElementById('status-' + index);
+          const bt = document.getElementById('bed_temp-' + index);
+          const p = document.getElementById('progress-' + index);
+          const bar = document.getElementById('progress-bar-' + index);
+          if (s) s.textContent = printer.status ?? 'Onbekend';
+          if (bt) bt.textContent = (printer.bed_temp ?? 0) + " °C";
+          if (p) p.textContent = (printer.mc_percent ?? 0) + "%";
+          if (bar) bar.style.width = (printer.mc_percent ?? 0) + "%";
         });
-    }
-    setInterval(updateStatus, 3000);
-  </script>
-</head>
-<body class="bg-gray-100 p-6">
-  <h1 class="text-3xl font-bold mb-6">📨 Printeroverzicht</h1>
+      });
+  }
+  setInterval(updateStatus, 3000);
+</script>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-    {% for p in printers %}
-    <div class="bg-white shadow-md rounded-2xl p-6 border border-gray-200">
+<h1 class="text-3xl font-bold mb-6">Printeroverzicht</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  {% for p in printers %}
+  <div class="bg-white rounded-2xl shadow p-5">
+    <div class="flex items-start justify-between">
       <h2 class="text-xl font-semibold mb-2">{{ p.name }}</h2>
-
-      <div class="flex flex-wrap items-center gap-4 mb-4">
-        <span class="text-gray-600">Status:</span>
-        <span id="status-{{ loop.index0 }}" class="px-2 py-1 rounded-full text-sm font-medium
-          {% if p.status == 'RUNNING' %}bg-green-100 text-green-800
-          {% elif p.status == 'IDLE' %}bg-gray-100 text-gray-800
-          {% elif p.status == 'FINISH' %}bg-yellow-100 text-yellow-800
-          {% else %}bg-red-100 text-red-800{% endif %}">
-          {{ p.status }}
-        </span>
-
-        <span class="text-gray-600">🌡️ Bed:</span>
-        <span id="bed_temp-{{ loop.index0 }}" class="font-medium">{{ p.bed_temp }} °C</span>
-
-        <span class="text-gray-600">Voortgang:</span>
-        <span id="progress-{{ loop.index0 }}" class="font-medium">{{ p.mc_percent if p.mc_percent is defined else 0 }}%</span>
-      </div>
-
-      <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
-        <div id="progress-bar-{{ loop.index0 }}" class="bg-blue-500 h-3 rounded-full" style="width: {{ p.mc_percent if p.mc_percent is defined else 0 }}%;"></div>
-      </div>
-
-      <div class="flex flex-wrap gap-2 mb-6">
-        <form method="POST" action="/activate">
-          <input type="hidden" name="serial" value="{{ p.serial }}">
-          <button type="submit" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Schuif activeren</button>
-        </form>
-
-        <form method="POST" action="/remove_printer" onsubmit="return confirm('Weet je zeker dat je printer {{ p.name }} wilt verwijderen?')">
-          <input type="hidden" name="serial" value="{{ p.serial }}">
-          <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700">Verwijder printer</button>
-        </form>
-      </div>
-
-      <form action="/deur_openen" method="post" style="display:inline;">
+      <form method="POST" action="/remove_printer" onsubmit="return confirm('Weet je zeker dat je printer {{ p.name }} wilt verwijderen?')">
         <input type="hidden" name="serial" value="{{ p.serial }}">
-        <button type="submit" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600"> Deur openen</button>
-      </form>
-
-      <form action="/deur_sluiten" method="post" style="display:inline;">
-        <input type="hidden" name="serial" value="{{ p.serial }}">
-        <button type="submit" class="bg-yellow-700 text-white px-4 py-2 rounded-lg hover:bg-yellow-800"> Deur sluiten</button>
-      </form>
-
-      <p>Deurstatus: <strong>{{ p.deur_status }}</strong></p>
-
-
-      <div class="mb-6">
-        <h4 class="font-semibold mb-2">Printbestand uploaden</h4>
-        <form method="POST" enctype="multipart/form-data" action="/upload" class="flex flex-col gap-2 md:flex-row">
-          <input type="hidden" name="serial" value="{{ p.serial }}">
-          <input type="file" name="file" accept=".3mf" required class="border border-gray-300 rounded px-3 py-2">
-          <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Upload</button>
-        </form>
-      </div>
-
-      <div class="mb-6">
-        <h4 class="font-semibold mb-2">Bestanden op printer</h4>
-        <ul class="list-disc list-inside space-y-1">
-          {% if p.files %}
-            {% for f in p.files %}
-              <li>{{ f }}
-                <form method="POST" action="/start_print" class="inline">
-                  <input type="hidden" name="serial" value="{{ p.serial }}">
-                  <input type="hidden" name="filename" value="{{ f }}">
-                  <button type="submit" class="text-blue-600 hover:underline ml-2">Print</button>
-                </form>
-                <form method="POST" action="/delete_file" class="inline">
-                  <input type="hidden" name="serial" value="{{ p.serial }}">
-                  <input type="hidden" name="filename" value="{{ f }}">
-                  <button type="submit" class="text-red-600 hover:underline ml-2">Verwijder</button>
-                </form>
-              </li>
-            {% endfor %}
-          {% else %}
-            <li><em>Geen bestanden gevonden</em></li>
-          {% endif %}
-        </ul>
-      </div>
-
-      <div class="mb-6">
-        <h4 class="font-semibold mb-2">Wachtrij</h4>
-        <ul class="space-y-2">
-          {% if p.queue %}
-            {% for item in p.queue %}
-              <li class="bg-gray-50 p-2 rounded">
-                <div><strong>{{ item.filename }}</strong> ({{ item.printed }}/{{ item.count }}) – {{ item.status }}</div>
-                <div class="text-sm text-gray-500">Bed drempel: {{ item.min_bed_temp }} °C</div>
-                <div class="flex flex-wrap gap-1 mt-1">
-                  <form method="POST" action="/remove_from_queue">
-                    <input type="hidden" name="serial" value="{{ p.serial }}">
-                    <input type="hidden" name="filename" value="{{ item.filename }}">
-                    <button type="submit" class="text-red-600 hover:underline">❌ Verwijder</button>
-                  </form>
-                  <form method="POST" action="/move_up">
-                    <input type="hidden" name="serial" value="{{ p.serial }}">
-                    <input type="hidden" name="filename" value="{{ item.filename }}">
-                    <button type="submit">🔼</button>
-                  </form>
-                  <form method="POST" action="/move_down">
-                    <input type="hidden" name="serial" value="{{ p.serial }}">
-                    <input type="hidden" name="filename" value="{{ item.filename }}">
-                    <button type="submit">🔽</button>
-                  </form>
-                  <form method="POST" action="/update_min_temp" class="flex items-center gap-1">
-                    <input type="hidden" name="serial" value="{{ p.serial }}">
-                    <input type="hidden" name="filename" value="{{ item.filename }}">
-                    <input name="min_bed_temp" type="number" step="0.1" placeholder="°C" required class="w-20 border rounded px-1">
-                    <button type="submit">Temperatuur Aanpassen</button>
-                  </form>
-                </div>
-              </li>
-            {% endfor %}
-          {% else %}
-            <li><em>Geen actieve wachtrij</em></li>
-          {% endif %}
-        </ul>
-      </div>
-
-      <form method="POST" action="/add_to_queue" class="mb-4 flex flex-col gap-2">
-        <input type="hidden" name="serial" value="{{ p.serial }}">
-        <select name="filename" required class="border border-gray-300 rounded px-2 py-1">
-          <option value="" disabled selected>Kies bestand...</option>
-          {% for f in p.files %}
-          <option value="{{ f }}">{{ f }}</option>
-          {% endfor %}
-        </select>
-        <input name="count" type="number" placeholder="Aantal prints" min="1" required class="border border-gray-300 rounded px-2 py-1">
-        <input name="min_bed_temp" type="number" placeholder="Bed drempel (°C)" step="0.1" value="35" required class="border border-gray-300 rounded px-2 py-1">
-        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Voeg toe aan wachtrij</button>
-      </form>
-
-      <form method="POST" action="/start_queue">
-        <input type="hidden" name="serial" value="{{ p.serial }}">
-        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">Start wachtrij</button>
+        <button type="submit" class="text-red-600 hover:text-red-700">Verwijderen</button>
       </form>
     </div>
-    {% endfor %}
+
+    <div class="text-sm text-gray-500 mb-1">IP: {{ p.ip }}</div>
+    <div class="text-sm text-gray-500 mb-2">Serial: {{ p.serial }}</div>
+
+    {% if p.queue and p.queue|length > 0 %}
+      <div class="text-sm text-gray-600 mb-3">
+        Actieve wachtrij:
+        <strong>{{ p.queue[0].filename }}</strong>
+        ({{ p.queue[0].printed }}/{{ p.queue[0].count }}) – {{ p.queue[0].status }}
+      </div>
+    {% else %}
+      <div class="text-sm text-gray-400 mb-3">Geen actieve wachtrij</div>
+    {% endif %}
+
+    <div class="flex flex-wrap items-center gap-4 mb-4">
+      <span class="text-gray-600">Status:</span>
+      <span id="status-{{ loop.index0 }}" class="px-2 py-1 rounded-full text-sm font-medium
+        {% if p.status == 'PRINTING' %}bg-green-100 text-green-800
+        {% elif p.status == 'IDLE' %}bg-gray-100 text-gray-800
+        {% elif p.status == 'FINISH' %}bg-yellow-100 text-yellow-800
+        {% else %}bg-red-100 text-red-800{% endif %}">
+        {{ p.status or 'Onbekend' }}
+      </span>
+
+      <span class="text-gray-600">🌡️ Bed:</span>
+      <span id="bed_temp-{{ loop.index0 }}" class="font-medium">{{ p.bed_temp or 0 }} °C</span>
+
+      <span class="text-gray-600">Voortgang:</span>
+      <span id="progress-{{ loop.index0 }}" class="font-medium">{{ p.mc_percent or 0 }}%</span>
+    </div>
+
+    <div class="w-full h-2 bg-gray-200 rounded overflow-hidden mb-4">
+      <div id="progress-bar-{{ loop.index0 }}" class="bg-blue-500 h-3 rounded-full" style="width: 0%;"></div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+      <form action="/activate" method="post">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 w-full">Schuif Activeren</button>
+      </form>
+
+      <form action="/deur_openen" method="post">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+        <button type="submit" class="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 w-full">Deur openen</button>
+      </form>
+
+      <form action="/deur_sluiten" method="post">
+        <input type="hidden" name="serial" value="{{ p.serial }}">
+        <button type="submit" class="bg-amber-700 text-white px-4 py-2 rounded-lg hover:bg-amber-800 w-full">Deur sluiten</button>
+      </form>
+    </div>
+
+    <!-- Bestanden (compact + zoek + toon alles) -->
+<div class="mb-6">
+  <div class="flex items-center justify-between mb-2">
+    <h4 class="font-semibold">
+      Bestanden <span class="text-gray-400">({{ p.files|length if p.files else 0 }})</span>
+    </h4>
+    <div class="flex items-center gap-2">
+      <input
+        type="text"
+        placeholder="Zoeken…"
+        class="border border-gray-300 rounded px-2 py-1 text-sm"
+        oninput="filterFiles({{ loop.index0 }}, this.value)"
+      >
+      {% set max_show = 6 %}
+      {% if p.files and p.files|length > max_show %}
+      <button
+        id="toggle-files-{{ loop.index0 }}"
+        type="button"
+        class="text-blue-600 hover:text-blue-700 text-sm"
+        onclick="toggleFiles({{ loop.index0 }}, {{ p.files|length }}, {{ max_show }})"
+      >
+        Toon alles ({{ p.files|length }})
+      </button>
+      {% endif %}
+    </div>
   </div>
 
-  <hr class="my-10">
-  <h2 class="text-2xl font-bold mb-4">➕ Printer toevoegen</h2>
-  <form method="POST" action="/add_printer" class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
-    <input name="name" placeholder="Naam" required class="border border-gray-300 rounded px-3 py-2">
-    <input name="ip" placeholder="IP-adres" required class="border border-gray-300 rounded px-3 py-2">
-    <input name="serial" placeholder="Serienummer" required class="border border-gray-300 rounded px-3 py-2">
-    <input name="access_code" placeholder="Access code" required class="border border-gray-300 rounded px-3 py-2">
-    <input name="esp_ip" placeholder="ESP IP" required class="border border-gray-300 rounded px-3 py-2">
-    <div class="md:col-span-2">
-      <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">Toevoegen</button>
+  {% set pid = loop.index0 %} {# sla outer loop index op #}
+  <ul id="file-list-{{ pid }}" class="space-y-2 max-h-60 overflow-y-auto pr-1">
+    {% if p.files %}
+      {% set max_show = 6 %}
+      {% for f in p.files %}
+      <li
+        class="file-row {% if loop.index > max_show %}hidden extra-{{ pid }}{% endif %}"
+        data-name="{{ f|lower }}"
+      >
+        <div class="bg-gray-50 p-2 rounded flex items-center justify-between">
+          <span class="truncate">{{ f }}</span>
+          <div class="flex items-center gap-2">
+            <form method="POST" action="/start_print">
+              <input type="hidden" name="serial" value="{{ p.serial }}">
+              <input type="hidden" name="filename" value="{{ f }}">
+              <button type="submit" class="text-blue-600 hover:underline">▶️ Start</button>
+            </form>
+            <form method="POST" action="/delete_file">
+              <input type="hidden" name="serial" value="{{ p.serial }}">
+              <input type="hidden" name="filename" value="{{ f }}">
+              <button type="submit" class="text-red-600 hover:underline">🗑️ Verwijder</button>
+            </form>
+          </div>
+        </div>
+      </li>
+      {% endfor %}
+    {% else %}
+      <li><em>Geen bestanden gevonden</em></li>
+    {% endif %}
+  </ul>
+</div>
+
+
+    <!-- Wachtrij beheren -->
+    <div class="mb-6">
+      <h4 class="font-semibold mb-2">Wachtrij</h4>
+      <ul class="space-y-2">
+        {% if p.queue %}
+          {% for item in p.queue %}
+          <li class="bg-gray-50 p-2 rounded">
+            <div><strong>{{ item.filename }}</strong> ({{ item.printed }}/{{ item.count }}) – {{ item.status }}</div>
+            <div class="text-sm text-gray-500">Bed drempel: {{ item.min_bed_temp }} °C</div>
+            <div class="flex flex-wrap gap-2 mt-1">
+              <form method="POST" action="/remove_from_queue">
+                <input type="hidden" name="serial" value="{{ p.serial }}">
+                <input type="hidden" name="filename" value="{{ item.filename }}">
+                <button type="submit" class="text-red-600 hover:underline">❌ Verwijder</button>
+              </form>
+              <form method="POST" action="/move_up">
+                <input type="hidden" name="serial" value="{{ p.serial }}">
+                <input type="hidden" name="filename" value="{{ item.filename }}">
+                <button type="submit">🔼</button>
+              </form>
+              <form method="POST" action="/move_down">
+                <input type="hidden" name="serial" value="{{ p.serial }}">
+                <input type="hidden" name="filename" value="{{ item.filename }}">
+                <button type="submit">🔽</button>
+              </form>
+              <form method="POST" action="/update_min_temp" class="flex items-center gap-1">
+                <input type="hidden" name="serial" value="{{ p.serial }}">
+                <input type="hidden" name="filename" value="{{ item.filename }}">
+                <input name="min_bed_temp" type="number" step="0.1" placeholder="°C" required class="w-20 border rounded px-2 py-1">
+                <button type="submit">Temperatuur aanpassen</button>
+              </form>
+            </div>
+          </li>
+          {% endfor %}
+        {% else %}
+          <li><em>Geen actieve wachtrij</em></li>
+        {% endif %}
+      </ul>
     </div>
-  </form>
-</body>
-</html>
+
+    <!-- Item toevoegen aan wachtrij -->
+    <form method="POST" action="/add_to_queue" class="mb-4 flex flex-col gap-2">
+      <input type="hidden" name="serial" value="{{ p.serial }}">
+      <select name="filename" required class="border border-gray-300 rounded px-2 py-1">
+        <option value="" disabled selected>Kies bestand...</option>
+        {% for f in p.files %}
+          <option value="{{ f }}">{{ f }}</option>
+        {% endfor %}
+      </select>
+      <div class="flex items-center gap-2">
+        <input name="count" type="number" min="1" step="1" value="1" class="w-24 border rounded px-2 py-1">
+        <input name="min_bed_temp" type="number" step="0.1" placeholder="Min bed °C (bv. 35)" class="w-40 border rounded px-2 py-1">
+        <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">Voeg toe aan wachtrij</button>
+      </div>
+    </form>
+
+    <!-- Start wachtrij (onderaan laten staan) -->
+    <form method="POST" action="/start_queue">
+      <input type="hidden" name="serial" value="{{ p.serial }}">
+      <button type="submit" class="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700">Start wachtrij</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="col-span-full">
+    <div class="bg-white rounded-xl shadow p-6 text-gray-600">
+      Nog geen printers toegevoegd.
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Add Printer Modal -->
+<div id="addPrinterModal" class="fixed inset-0 bg-black/50 items-center justify-center hidden z-50">
+  <div class="bg-white w-full max-w-lg rounded-xl shadow-lg p-6 mx-4 relative">
+    <button id="closeAddPrinter" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700" aria-label="Sluiten">✕</button>
+    <h3 class="text-xl font-semibold mb-4">➕ Printer toevoegen</h3>
+    <form method="POST" action="/add_printer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <input name="name" placeholder="Naam" required class="border border-gray-300 rounded px-3 py-2">
+      <input name="ip" placeholder="IP-adres" required class="border border-gray-300 rounded px-3 py-2">
+      <input name="serial" placeholder="Serienummer" required class="border border-gray-300 rounded px-3 py-2">
+      <input name="access_code" placeholder="Access code" required class="border border-gray-300 rounded px-3 py-2">
+      <input name="esp_ip" placeholder="ESP IP" required class="border border-gray-300 rounded px-3 py-2">
+      <div class="md:col-span-2 flex justify-end gap-2 pt-2">
+        <button type="button" id="cancelAddPrinter" class="px-4 py-2 rounded-lg border border-gray-300">Annuleren</button>
+        <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700">Toevoegen</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function toggleFiles(i, total, maxShow) {
+    const btn = document.getElementById('toggle-files-' + i);
+    const extras = document.querySelectorAll('.extra-' + i);
+    if (!extras.length) return;
+    const show = extras[0].classList.contains('hidden');
+    extras.forEach(el => el.classList.toggle('hidden', !show));
+    btn.textContent = show ? 'Toon minder' : `Toon alles (${total})`;
+    if (!show) {
+      const list = document.getElementById('file-list-' + i);
+      list.scrollTop = 0;
+    }
+  }
+
+  function filterFiles(i, q) {
+    q = (q || '').toLowerCase().trim();
+    const list = document.getElementById('file-list-' + i);
+    if (!list) return;
+    const items = list.querySelectorAll('li.file-row');
+    items.forEach(li => {
+      const name = (li.dataset.name || '').toLowerCase();
+      li.classList.toggle('hidden', q && !name.includes(q));
+    });
+  }
+</script>
+
+
+<script>
+  (function(){
+    const openBtn = document.getElementById('openAddPrinter');
+    const modal = document.getElementById('addPrinterModal');
+    const closeBtn = document.getElementById('closeAddPrinter');
+    const cancelBtn = document.getElementById('cancelAddPrinter');
+
+    function openModal(){
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      setTimeout(() => { modal.querySelector('input')?.focus(); }, 0);
+    }
+    function closeModal(){
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    openBtn?.addEventListener('click', openModal);
+    closeBtn?.addEventListener('click', closeModal);
+    cancelBtn?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+    document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') closeModal(); });
+  })();
+</script>
+{% endblock %}

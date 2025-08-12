@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+{% block title %}Wachtrij{% endblock %}
+
+{% block content %}
+<div class="container mx-auto py-6">
+  <h1 class="text-3xl font-bold mb-6">📝 Wachtrijoverzicht</h1>
+
+  {% if queues %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {% for printer in queues %}
+        <div class="bg-white shadow rounded-lg p-6">
+          <h2 class="text-xl font-semibold mb-4">{{ printer.name }}</h2>
+
+          {% if printer.queue %}
+            <ul class="space-y-2">
+              {% for item in printer.queue %}
+                <li class="bg-gray-50 p-3 rounded flex flex-col space-y-1">
+                  <div class="font-medium">{{ item.filename }}</div>
+                  <div class="text-sm text-gray-600">
+                    <span class="mr-2">📦 {{ item.printed }}/{{ item.count }}</span>
+                    <span class="mr-2">🔥 Bed: {{ item.min_bed_temp }}°C</span>
+                    <span class="mr-2">📌 Status: {{ item.status }}</span>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-gray-500 italic">Geen items in wachtrij</p>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="bg-white p-6 rounded shadow">
+      <p class="text-gray-500 italic">Er zijn momenteel geen actieve wachtrijen.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

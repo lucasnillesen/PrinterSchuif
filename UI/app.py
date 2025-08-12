@@ -1,7 +1,9 @@
 import os
-import json
 import base64
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, jsonify
+from pathlib import Path
+import json, io
+from history import load_history, export_history_csv
 from werkzeug.utils import secure_filename
 from controller import schuif_aansturen, deur_openen, deur_dicht
 from config import BED_TEMP_THRESHOLD
@@ -19,27 +21,21 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
-# === Start bol.com order watcher (EAN→3MF→queue) ===
-try:
-    try:
-        from config import PRINTER_SERIAL as DEFAULT_PRINTER_SERIAL
-    except Exception:
-        DEFAULT_PRINTER_SERIAL = None
 
-    # Fallback: pak eerste printer in lijst (als je die in app.py opbouwt)
-    target_serial = None
-    try:
-        target_serial = printers[0]["serial"] if DEFAULT_PRINTER_SERIAL is None else DEFAULT_PRINTER_SERIAL
-    except Exception:
-        target_serial = DEFAULT_PRINTER_SERIAL
 
-    if target_serial:
-        _bol_watcher = BolOrderWatcher(printer_serial=target_serial, interval_sec=120, min_bed_temp=35.0)
-        _bol_watcher.start()
-    else:
-        print("ℹ️ Geen printer serial gevonden voor BolOrderWatcher; watcher niet gestart.")
-except Exception as _e:
-    print(f"⚠️ Kon BolOrderWatcher niet starten: {_e}")
+MAPPING_PATH = Path(__file__).resolve().parent / "ean_mapping.json"
+
+def read_mapping():
+    if not MAPPING_PATH.exists():
+        return {}
+    try:
+        return json.loads(MAPPING_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+def write_mapping(mapping: dict):
+    MAPPING_PATH.write_text(json.dumps(mapping, ensure_ascii=False, indent=2), encoding="utf-8")
+
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -84,9 +80,7 @@ def start_auto_trigger(printer):
                 print(f"[{printer['name']}] BED_TEMP_THRESHOLD = {BED_TEMP_THRESHOLD}")
             try:
                 min_temp = float(queue[0].get("min_bed_temp", BED_TEMP_THRESHOLD))
-            except:
-                min_temp = BED_TEMP_THRESHOLD
-            else:
+            except Exception:
                 min_temp = BED_TEMP_THRESHOLD
 
 
@@ -177,6 +171,29 @@ if os.path.exists(PRINTER_FILE):
             mqtt_instance.start()
             p["mqtt_client_instance"] = mqtt_instance
             start_auto_trigger(p)
+
+# === Start bol.com order watcher (EAN→3MF→queue) ===
+try:
+    try:
+        from config import PRINTER_SERIAL as DEFAULT_PRINTER_SERIAL
+    except Exception:
+        DEFAULT_PRINTER_SERIAL = None
+
+    # Fallback: pak eerste printer in lijst (als je die in app.py opbouwt)
+    target_serial = None
+    try:
+        target_serial = printers[0]["serial"] if DEFAULT_PRINTER_SERIAL is None else DEFAULT_PRINTER_SERIAL
+    except Exception:
+        target_serial = DEFAULT_PRINTER_SERIAL
+
+    if target_serial:
+        _bol_watcher = BolOrderWatcher(printer_serial=target_serial, interval_sec=120, min_bed_temp=35.0)
+        _bol_watcher.start()
+    else:
+        print("ℹ️ Geen printer serial gevonden voor BolOrderWatcher; watcher niet gestart.")
+except Exception as _e:
+    print(f"⚠️ Kon BolOrderWatcher niet starten: {_e}")
+
 
 @app.route("/add_printer", methods=["POST"])
 def add_printer():
@@ -429,6 +446,123 @@ def data():
             "mc_percent": p.get("mc_percent", 0)
         })
     return jsonify(simplified)
+
+def collect_printer_files():
+    for p in printers:
+        try:
+            p["files"] = fetch_files_from_printer(p["ip"], "bblp", p["access_code"])
+        except Exception:
+            p["files"] = []
+    return printers
+
+@app.route("/orders", methods=["GET"])
+def orders():
+    mapping = read_mapping()
+    # normaliseer naar {ean, filename, printer_serial}
+    mapping_list = []
+    for k, v in mapping.items():
+        if isinstance(v, dict):
+            mapping_list.append({
+                "ean": k,
+                "filename": v.get("filename", ""),
+                "printer_serial": v.get("printer_serial", "")
+            })
+        else:
+            mapping_list.append({"ean": k, "filename": v, "printer_serial": ""})
+
+    collect_printer_files()  # ook voor dropdown-bestanden
+    items = load_history(limit=500)
+    return render_template("orders.html",
+                           mapping_list=sorted(mapping_list, key=lambda x: x["ean"]),
+                           items=items,
+                           printers=printers)
+
+
+
+@app.post("/orders/map-add")
+def orders_map_add():
+    ean = (request.form.get("ean") or "").strip()
+    filename = (request.form.get("filename") or "").strip()
+    printer_serial = (request.form.get("printer_serial") or "").strip()
+
+    if not ean or not filename:
+        flash("Vul zowel EAN als bestand in.", "danger"); return redirect(url_for("orders"))
+    if not ean.isdigit() or not (8 <= len(ean) <= 14):
+        flash("EAN lijkt ongeldig. Alleen cijfers, 8–14 tekens.", "danger"); return redirect(url_for("orders"))
+    if printer_serial and not any(p["serial"] == printer_serial for p in printers):
+        flash("Onbekende printer.", "danger"); return redirect(url_for("orders"))
+
+    mapping = read_mapping()
+    mapping[ean] = {"filename": filename, "printer_serial": printer_serial}
+    write_mapping(mapping)
+    flash(f"Mapping toegevoegd: {ean} → {filename} ({printer_serial or '–'})", "success")
+    return redirect(url_for("orders"))
+
+
+@app.post("/orders/map-update")
+def orders_map_update():
+    original_ean = (request.form.get("original_ean") or "").strip()
+    new_ean = (request.form.get("ean") or "").strip()
+    filename = (request.form.get("filename") or "").strip()
+    printer_serial = (request.form.get("printer_serial") or "").strip()
+
+    if not original_ean:
+        flash("Ontbrekende originele EAN.", "danger"); return redirect(url_for("orders"))
+    if not new_ean or not new_ean.isdigit() or not (8 <= len(new_ean) <= 14):
+        flash("Nieuwe EAN ongeldig. Alleen cijfers, 8–14 tekens.", "danger"); return redirect(url_for("orders"))
+    if not filename:
+        flash("Kies een bestand.", "danger"); return redirect(url_for("orders"))
+    if printer_serial and not any(p["serial"] == printer_serial for p in printers):
+        flash("Onbekende printer.", "danger"); return redirect(url_for("orders"))
+
+    mapping = read_mapping()
+    if original_ean not in mapping:
+        flash("Originele EAN niet gevonden.", "danger"); return redirect(url_for("orders"))
+    if new_ean != original_ean and new_ean in mapping:
+        flash(f"EAN {new_ean} bestaat al.", "danger"); return redirect(url_for("orders"))
+
+    if new_ean != original_ean:
+        mapping.pop(original_ean, None)
+    mapping[new_ean] = {"filename": filename, "printer_serial": printer_serial}
+    write_mapping(mapping)
+    flash(f"Mapping opgeslagen: {new_ean} → {filename} ({printer_serial or '–'})", "success")
+    return redirect(url_for("orders"))
+
+
+@app.post("/orders/map-delete")
+def orders_map_delete():
+    ean = (request.form.get("ean") or "").strip()
+    if not ean:
+        flash("Geen EAN opgegeven.", "danger"); return redirect(url_for("orders"))
+    mapping = read_mapping()
+    if ean in mapping:
+        mapping.pop(ean)
+        write_mapping(mapping)
+        flash(f"Mapping verwijderd: {ean}", "success")
+    else:
+        flash("EAN niet gevonden.", "danger")
+    return redirect(url_for("orders"))
+
+
+
+@app.route("/orders/history.csv")
+def orders_history_csv():
+    csv_bytes = export_history_csv()
+    return send_file(
+        io.BytesIO(csv_bytes),
+        mimetype="text/csv",
+        as_attachment=True,
+        download_name="print_history.csv",
+    )
+
+@app.route("/orders/mapping.json")
+def orders_mapping_json():
+    return jsonify(read_mapping())
+
+@app.route("/queue")
+def queue():
+    # (voor nu) gewoon naar de homepage waar je de wachtrij al toont
+    return redirect(url_for("index"))
 
 @app.route("/")
 def index():

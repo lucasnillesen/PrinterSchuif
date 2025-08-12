@@ -1,10 +1,38 @@
 {
   "01P00A3B2600141": [
     {
-      "filename": "opzetborstel.gcode.3mf",
+      "filename": "koffiefilter.gcode.3mf",
       "count": 1,
       "printed": 0,
       "status": "printing",
+      "min_bed_temp": 35.0
+    },
+    {
+      "filename": "opzetborstel.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 35.0
+    },
+    {
+      "filename": "bookholder.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 35.0
+    },
+    {
+      "filename": "bookholder.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 35.0
+    },
+    {
+      "filename": "opzetborstel.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
       "min_bed_temp": 35.0
     }
   ]
