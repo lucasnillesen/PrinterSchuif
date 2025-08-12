@@ -76,6 +76,19 @@ bool impactMonitoringY = false;
 bool impactMonitoringX = false;
 bool schuifVastgemeld = false;
 
+
+const unsigned long WARMUP_MS = 5000;
+
+const uint16_t SGY_TOP_THRESHOLD     = 100;   // drempel bovenstop
+const int      SGY_TOP_SAMPLES       = 30;    // ~1s bij 50ms
+const uint16_t SGY_IMPACT_THRESHOLD  = 150;   // drempel printbed raken
+const int      SGY_CONFIRM_SAMPLES   = 15;    // ~0.5s bij 50ms
+
+int impactYUpCount = 0;
+int impactYDownCount = 0;
+bool bezig = false;
+
+
 void initSchuifMechanisme() {
   Serial.begin(115200);
   Serial.println("== TMC2209 SG-detectie: omhoog en omlaag op drempelwaarden ==");
@@ -194,29 +207,47 @@ void schuifMechanisme() {
         fase = OMHOOG;
         break;
 
-      case OMHOOG:
-        static bool bezig = false;
-        if (!bezig) {
-          schuifStarted();
-          bezig = true;
+      case OMLAAG:
+        {
+          // Warm-up voordat SG-monitoring aan gaat
+          if (!impactMonitoringY && millis() - motionStart > WARMUP_MS) {
+            impactMonitoringY = true;
+            impactYDownCount = 0;
+            Serial.println("[Y] Impactdetectie actief tijdens omlaag (persistent-low).");
+          }
+
+          if (impactMonitoringY) {
+            if (avgY < SGY_IMPACT_THRESHOLD) {
+              impactYDownCount++;
+            } else if (impactYDownCount > 0) {
+              impactYDownCount--;  // zachte decay
+            }
+
+            if (impactYDownCount >= SGY_CONFIRM_SAMPLES) {
+              Serial.println("✅ Persistent lage SG → printbed geraakt.");
+
+              stepperY.stop();
+              stepperY.setCurrentPosition(stepperY.currentPosition());
+
+              // nèt iets terug omhoog om niet te blijven drukken
+              long halveRotatie = 10000;
+              stepperY.moveTo(stepperY.currentPosition() - halveRotatie);
+              while (stepperY.distanceToGo() != 0) stepperY.run();
+
+              // Ga naar UIT (terugtrekken/push)
+              driverX.rms_current(1500);
+              stepperX.moveTo(100000);
+              resetSGBuffer();
+              motionStart = millis();
+              impactMonitoringY = false;
+              impactYDownCount = 0;
+              fase = UIT;
+            }
+          }
+          break;
         }
-        if (!impactMonitoringY && millis() - motionStart > 10000) {
-          impactMonitoringY = true;
-          Serial.println("[Y] SG-monitor actief.");
-        }
-        if (impactMonitoringY && avgY < 100) {
-          Serial.println("Bovenstop bereikt. Beweeg schuif naar binnen");
-          stepperY.stop();
-          stepperY.setCurrentPosition(stepperY.currentPosition());
-          delay(200);
-          resetSGBuffer();
-          stepperX.setMaxSpeed(10000);
-          stepperX.moveTo(-1000000);
-          fase = IN;
-          motionStart = millis();
-          impactMonitoringX = false;
-        }
-        break;
+
+
 
       case IN:
         if (!impactMonitoringX && millis() - motionStart > 3000) {
@@ -239,66 +270,50 @@ void schuifMechanisme() {
         }
         break;
 
-      case OMLAAG:
-        if (!impactMonitoringY && millis() - motionStart > 3000) {
-          impactMonitoringY = true;
-          Serial.println("[Y] Impactdetectie actief tijdens omlaag.");
-        }
-
-        if (impactMonitoringY && avgY < 150) {
-          Serial.println("Printbed geraakt. Verifiëren...");
-
-          // Impact detectie, nu eerst extra verificatie
-          stepperY.stop();
-          stepperY.setCurrentPosition(stepperY.currentPosition());
-          delay(150);  // kleine rust
-
-          // ➕ Extra terugduw en SG controle
-          const int terugStappen = 1000;
-          const int sgThreshold = 150;
-          const int stabilisatieDelay = 150;
-          const int numSamples = 5;
-
-          long terug = stepperY.currentPosition() + terugStappen;
-          stepperY.moveTo(terug);
-          while (stepperY.distanceToGo() != 0) stepperY.run();
-
-          delay(stabilisatieDelay);
-
-          int totaalSG = 0;
-          for (int i = 0; i < numSamples; i++) {
-            totaalSG += driverY.SG_RESULT();
-            delay(20);
+      case OMHOOG:
+        {
+          if (!bezig) {
+            schuifStarted();
+            bezig = true;
           }
-          int gemiddeldeSG = totaalSG / numSamples;
 
-          Serial.print("Gemiddelde SG na verificatie: ");
-          Serial.println(gemiddeldeSG);
-
-          // Terug naar originele positie
-          stepperY.moveTo(terug - terugStappen);
-          while (stepperY.distanceToGo() != 0) stepperY.run();
-          delay(50);
-
-          // Alleen doorgaan als nog steeds laag
-          if (gemiddeldeSG < sgThreshold) {
-            Serial.println("✅ Verificatie bevestigt impact. Halve draai terug omhoog.");
-            long halveRotatie = 3500;
-            stepperY.moveTo(stepperY.currentPosition() - halveRotatie);
-            while (stepperY.distanceToGo() != 0) {
-              stepperY.run();
-            }
-            driverX.rms_current(1500);
-            stepperX.moveTo(100000);
+          // Enable SG-monitor pas na warm-up
+          if (!impactMonitoringY && millis() - motionStart > WARMUP_MS) {
+            impactMonitoringY = true;
+            impactYUpCount = 0;
             resetSGBuffer();
-            motionStart = millis();
-            fase = UIT;
-          } else {
-            Serial.println("❌ Geen bevestiging van impact. Verder omlaag...");
-            // Blijf in OMLAAG, dus niks aan fase veranderen
+            Serial.println("[Y] SG-monitor actief (omhoog, persistent-low).");
           }
+
+          if (impactMonitoringY) {
+            if (avgY < SGY_TOP_THRESHOLD) {
+              impactYUpCount++;
+            } else if (impactYUpCount > 0) {
+              impactYUpCount--;  // zachte decay
+            }
+
+            if (impactYUpCount >= SGY_TOP_SAMPLES) {
+              Serial.println("✅ Bovenstop bevestigd (persistent lage SG). Schuif naar binnen...");
+
+              stepperY.stop();
+              stepperY.setCurrentPosition(stepperY.currentPosition());
+              delay(200);
+              resetSGBuffer();
+
+              stepperX.setMaxSpeed(10000);
+              stepperX.moveTo(-1000000);  // IN
+              fase = IN;
+
+              motionStart = millis();
+              impactMonitoringY = false;
+              impactMonitoringX = false;
+              impactYUpCount = 0;
+            }
+          }
+          break;
         }
-        break;
+
+
 
 
       case UIT:
@@ -339,6 +354,8 @@ void schuifMechanisme() {
 
           break;
         }
+
+
       case TERUG:
         {
           bool switchYActief = digitalRead(LIMIT_SWITCH_Y_PIN) == HIGH;

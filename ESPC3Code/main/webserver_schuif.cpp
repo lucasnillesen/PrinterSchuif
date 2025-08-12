@@ -13,7 +13,7 @@ const char* ssid = "robert";
 const char* password = "dakterras1234";
 
 // Vervang dit IP-adres door dat van jouw Flask webinterface!
-const char* webserver_ip = "192.168.178.34";
+const char* webserver_ip = "192.168.178.18";
 
 WebServer server(80);
 

@@ -13,11 +13,34 @@ from printer_files import fetch_files_from_printer
 import threading
 import requests
 import time
+from bol.watcher import BolOrderWatcher
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
+# === Start bol.com order watcher (EAN→3MF→queue) ===
+try:
+    try:
+        from config import PRINTER_SERIAL as DEFAULT_PRINTER_SERIAL
+    except Exception:
+        DEFAULT_PRINTER_SERIAL = None
+
+    # Fallback: pak eerste printer in lijst (als je die in app.py opbouwt)
+    target_serial = None
+    try:
+        target_serial = printers[0]["serial"] if DEFAULT_PRINTER_SERIAL is None else DEFAULT_PRINTER_SERIAL
+    except Exception:
+        target_serial = DEFAULT_PRINTER_SERIAL
+
+    if target_serial:
+        _bol_watcher = BolOrderWatcher(printer_serial=target_serial, interval_sec=120, min_bed_temp=35.0)
+        _bol_watcher.start()
+    else:
+        print("ℹ️ Geen printer serial gevonden voor BolOrderWatcher; watcher niet gestart.")
+except Exception as _e:
+    print(f"⚠️ Kon BolOrderWatcher niet starten: {_e}")
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 printers = []

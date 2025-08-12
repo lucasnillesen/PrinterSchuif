@@ -71,7 +71,7 @@ def upload_file_to_printer(file_storage):
             host="192.168.178.242",  # ← pas dit eventueel dynamisch aan in Flask
             port=990,
             username="bblp",
-            password="18762640"
+            password="25793839"
         )
         ftp.connect()
         ftp.upload_file(tmp_path, filename)

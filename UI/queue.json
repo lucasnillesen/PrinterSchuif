@@ -1,3 +1,11 @@
 {
-  "01P00A3B2600141": []
+  "01P00A3B2600141": [
+    {
+      "filename": "opzetborstel.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "printing",
+      "min_bed_temp": 35.0
+    }
+  ]
 }
