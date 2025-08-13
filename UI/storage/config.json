@@ -1,0 +1,5 @@
+{
+  "default_min_bed_temp": 30.0,
+  "dark_mode": false,
+  "browser_notifications": false
+}

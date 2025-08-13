@@ -67,6 +67,34 @@ class PrinterClient:
         except Exception as e:
             print(f"❌ Kon geen verbinding maken met {self.printer['name']}: {e}")
 
+    def _request_topic(self):
+        serial = self.printer.get("serial")
+        return f"device/{serial}/request" if serial else None
+
+    def pause(self) -> bool:
+        topic = self._request_topic()
+        if not topic:
+            return False
+        payload = {"print": {"command": "pause"}}
+        try:
+            self.client.publish(topic, json.dumps(payload), qos=1)
+            return True
+        except Exception as e:
+            print("MQTT pause error:", e)
+            return False
+
+    def resume(self) -> bool:
+        topic = self._request_topic()
+        if not topic:
+            return False
+        payload = {"print": {"command": "resume"}}
+        try:
+            self.client.publish(topic, json.dumps(payload), qos=1)
+            return True
+        except Exception as e:
+            print("MQTT resume error:", e)
+            return False
+
     def stop(self):
         try:
             self.client.disconnect()

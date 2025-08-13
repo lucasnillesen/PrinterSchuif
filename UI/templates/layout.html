@@ -1,29 +1,122 @@
-<!-- UI/templates/layout.html -->
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="nl" class="{{ 'dark' if app_settings and app_settings.get('dark_mode') else '' }}">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>{% block title %}Dashboard{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+
+  <!-- Tailwind CSS via CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+
+  <!-- URL voor SSE als data, zodat JS geen Jinja bevat -->
+<link id="sse-url" rel="preload" href="{{ url_for('sse_events') }}" as="fetch">
+
+<!-- App-config als JSON (geen JS-validatie) -->
+<script id="app-config" type="application/json">
+{"browserNotifications": {{ (app_settings.get('browser_notifications', false) | tojson) if app_settings else 'false' }}}
+</script>
+
 </head>
-<body class="bg-gray-100">
-  <!-- Navigatiebar -->
-  <nav class="bg-gray-800 p-4 text-white shadow">
-    <div class="container mx-auto flex items-center justify-between">
-      <div class="flex items-center space-x-6">
-        <a href="{{ url_for('index') }}" class="text-lg font-semibold hover:text-gray-300">🏠 Home</a>
-        <a href="{{ url_for('orders') }}" class="hover:text-gray-300">📦 Orders</a>
-        <a href="{{ url_for('queue') }}" class="hover:text-gray-300">📝 Wachtrij</a>
-      </div>
-      <div class="flex items-center space-x-2">
+
+
+
+<body class="bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 min-h-screen">
+  <!-- Top nav -->
+  <header class="bg-white dark:bg-gray-800 shadow sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+      <a href="{{ url_for('index') }}" class="font-bold text-lg tracking-tight">PrintHub</a>
+
+      <nav class="hidden md:flex items-center gap-4">
+        {% block nav_links %}
+          <a href="{{ url_for('index') }}"
+             class="{{ 'font-semibold text-gray-900 dark:text-white' if request.endpoint=='index' else 'text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white' }}">
+            Dashboard
+          </a>
+          <a href="{{ url_for('orders') }}"
+             class="{{ 'font-semibold text-gray-900 dark:text-white' if request.path.startswith('/orders') else 'text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white' }}">
+            Orders
+          </a>
+          <a href="{{ url_for('settings_page') }}"
+             class="{{ 'font-semibold text-gray-900 dark:text-white' if request.path.startswith('/settings') else 'text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white' }}">
+            Instellingen
+          </a>
+        {% endblock %}
+      </nav>
+
+      <div class="flex-1"></div>
+
+      <!-- Right-aligned actions (page-specific) -->
+      <div class="flex items-center gap-2">
         {% block nav_actions %}{% endblock %}
       </div>
     </div>
-  </nav>
+  </header>
 
-  <!-- Pagina-inhoud -->
-  <main class="container mx-auto p-6">
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="max-w-7xl mx-auto px-4 pt-4">
+        {% for category, message in messages %}
+          <div class="mb-3 rounded-lg px-4 py-3
+                      {% if category in ['success','ok'] %} bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200
+                      {% elif category in ['danger','error'] %} bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200
+                      {% elif category in ['warning'] %} bg-yellow-100 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-100
+                      {% else %} bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200
+                      {% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Page content -->
+  <main class="max-w-7xl mx-auto p-4">
     {% block content %}{% endblock %}
   </main>
+
+  <!-- Browser notifications (only for slide jam) -->
+  <script>
+(function () {
+  try {
+    const cfgEl = document.getElementById('app-config');
+    const cfg = cfgEl ? JSON.parse(cfgEl.textContent) : {};
+    const enabled = !!cfg.browserNotifications;
+    if (!enabled || !("Notification" in window)) return;
+
+    async function ensurePermission() {
+      if (Notification.permission === "granted") return true;
+      if (Notification.permission === "denied") return false;
+      const res = await Notification.requestPermission();
+      return res === "granted";
+    }
+
+    function showJam(evt) {
+      new Notification("Schuif vast", {
+        body: (evt && evt.message) || "Controleer de printer en reset de schuif.",
+        tag: "slide-jam"
+      });
+    }
+
+    ensurePermission().then(ok => {
+      if (!ok) return;
+      const sseUrl = document.getElementById('sse-url')?.getAttribute('href');
+      if (!sseUrl) return;
+      const es = new EventSource(sseUrl);
+      es.onmessage = (m) => {
+        try {
+          const evt = JSON.parse(m.data || "{}");
+          if (evt && evt.type === "slide_jam") showJam(evt);
+        } catch {}
+      };
+    });
+  } catch {}
+})();
+</script>
+
 </body>
 </html>

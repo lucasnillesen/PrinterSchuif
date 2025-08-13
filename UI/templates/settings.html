@@ -1,0 +1,155 @@
+{% extends "layout.html" %}
+{% block title %}Instellingen{% endblock %}
+
+{% block content %}
+<!-- Page header -->
+<div class="mb-6">
+  <h1 class="text-3xl font-bold">Instellingen</h1>
+  <p class="text-gray-600 dark:text-gray-300 mt-1">
+    Beheer globale voorkeuren en printergegevens.
+  </p>
+</div>
+
+<!-- Global settings card -->
+<form method="POST" action="{{ url_for('settings_save_global') }}"
+      class="bg-white dark:bg-gray-800 rounded-2xl shadow p-6 mb-8">
+  <h2 class="text-2xl font-semibold mb-4">Globaal</h2>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-end">
+    <!-- Min bed temp -->
+    <div class="lg:col-span-5">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+        Standaard bed-drempel (°C)
+      </label>
+      <div class="relative">
+        <input
+          type="number" step="0.1" name="default_min_bed_temp"
+          value="{{ (settings.default_min_bed_temp if settings else 35.0) }}"
+          class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 pr-12"
+          placeholder="bijv. 35.0">
+        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400 select-none">°C</span>
+      </div>
+    </div>
+
+    <!-- Dark mode toggle -->
+    <div class="lg:col-span-3">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+        Thema
+      </label>
+      <label class="inline-flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" name="dark_mode" class="sr-only peer"
+               {% if settings and settings.get('dark_mode') %}checked{% endif %}>
+        <span class="w-11 h-6 bg-gray-300 peer-checked:bg-blue-600 rounded-full transition-colors relative">
+          <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
+                       peer-checked:translate-x-5"></span>
+        </span>
+        <span class="text-gray-700 dark:text-gray-200">Dark mode</span>
+      </label>
+    </div>
+
+    <!-- Browser notifications toggle -->
+    <div class="lg:col-span-4">
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+        Notificaties
+      </label>
+      <label class="inline-flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" name="browser_notifications" class="sr-only peer"
+               {% if settings and settings.get('browser_notifications') %}checked{% endif %}>
+        <span class="w-11 h-6 bg-gray-300 peer-checked:bg-blue-600 rounded-full transition-colors relative">
+          <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
+                       peer-checked:translate-x-5"></span>
+        </span>
+        <span class="text-gray-700 dark:text-gray-200">
+          Browser-notificaties inschakelen
+        </span>
+      </label>
+    </div>
+
+    <!-- Save button -->
+    <div class="lg:col-span-12">
+      <div class="border-t border-gray-200 dark:border-gray-700 mt-4 pt-4 flex justify-end">
+        <button
+          type="submit"
+          class="inline-flex items-center px-6 h-11 rounded-lg font-medium
+                 bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+          Opslaan
+        </button>
+      </div>
+    </div>
+  </div>
+</form>
+
+<!-- Printers section -->
+<section class="bg-white dark:bg-gray-800 rounded-2xl shadow">
+  <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+    <div class="flex items-center justify-between gap-4">
+      <h2 class="text-2xl font-semibold">Printers</h2>
+      <p class="text-gray-500 dark:text-gray-400 text-sm">
+        Printers toevoegen kan via het Dashboard (knop <em>“Printer toevoegen”</em>).
+      </p>
+    </div>
+  </div>
+
+  {% if printers and printers|length > 0 %}
+    <div class="divide-y divide-gray-200 dark:divide-gray-700">
+      {% for p in printers %}
+      <div class="p-6">
+        <h3 class="text-lg font-semibold">{{ p.name }}</h3>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          Serial: {{ p.serial }}
+        </p>
+
+        <form method="POST" action="{{ url_for('settings_update_printer') }}"
+              class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <input type="hidden" name="old_serial" value="{{ p.serial }}">
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Naam</label>
+            <input name="name" value="{{ p.name }}"
+                   class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">IP-adres</label>
+            <input name="ip" value="{{ p.ip }}"
+                   class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Serial</label>
+            <input name="serial" value="{{ p.serial }}"
+                   class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3" />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">Access code</label>
+            <input name="access_code" value="{{ p.access_code }}"
+                   class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3" />
+          </div>
+
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">ESP IP</label>
+            <input name="esp_ip" value="{{ p.esp_ip }}"
+                   class="w-full h-11 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3" />
+          </div>
+
+          <div class="md:col-span-2 flex justify-end pt-2">
+            <button
+              type="submit"
+              class="inline-flex items-center px-6 h-11 rounded-lg font-medium
+                     bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+              Wijzigingen opslaan
+            </button>
+          </div>
+        </form>
+      </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="p-6 text-gray-600 dark:text-gray-300">
+      Nog geen printers toegevoegd.
+    </div>
+  {% endif %}
+</section>
+
+{% endblock %}
