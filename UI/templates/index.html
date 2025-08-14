@@ -24,23 +24,20 @@
           if (p) p.textContent = (printer.mc_percent ?? 0) + "%";
           if (bar) bar.style.width = (printer.mc_percent ?? 0) + "%";
 
-          // Toggle Pauze/Hervat live updaten
           const t = document.getElementById('togglePause-' + index);
           if (t) {
             const st = (printer.status || '').toUpperCase();
-            let label = '⏸️ Pauzeer print';
+            let label = '⏸ Pauzeer print';
             let enabled = (st === 'PRINTING' || st === 'PAUSE' || st === 'PAUSED');
             let classes;
-
             if (st === 'PAUSED' || st === 'PAUSE') {
-              label = '▶️ Hervat print';
+              label = '▶ Hervat print';
               classes = 'text-white px-4 py-2 rounded-lg w-full bg-green-600 hover:bg-green-700';
             } else if (st === 'PRINTING') {
               classes = 'text-white px-4 py-2 rounded-lg w-full bg-orange-600 hover:bg-orange-700';
             } else {
               classes = 'text-white px-4 py-2 rounded-lg w-full bg-gray-400 cursor-not-allowed';
             }
-
             t.textContent = label;
             t.className = classes + (enabled ? '' : ' opacity-50');
             t.disabled = !enabled;
@@ -130,7 +127,7 @@
       </form>
     </div>
 
-    <!-- Popup-openers (zelfde breedte als knoppen) -->
+    <!-- Popup-openers -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
       <button type="button"
               class="open-files w-full h-10 rounded-lg border bg-white hover:bg-gray-50 text-sm flex items-center justify-center gap-2 dark:bg-gray-900 dark:border-gray-700 dark:hover:bg-gray-800"
@@ -156,6 +153,29 @@
                   type="button" data-modal="files" data-pid="{{ loop.index0 }}">✕</button>
         </div>
 
+        <!-- Upload-zone (drag & drop + kies bestand) -->
+        <div class="mb-3">
+          <div class="dropzone rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 p-3 text-sm bg-gray-50 dark:bg-gray-900"
+               data-serial="{{ p.serial }}" data-pid="{{ loop.index0 }}">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="opacity-90">Sleep een bestand hierheen of klik op <span class="font-medium">Kies bestand</span>.</div>
+              <div class="flex items-center gap-2">
+                <button type="button" class="choose-file px-3 h-9 rounded bg-blue-600 hover:bg-blue-700 text-white">Kies bestand</button>
+                <input type="file" class="file-input hidden" accept=".3mf,.gcode,.stl,.zip">
+              </div>
+            </div>
+            <div class="text-xs text-gray-500 mt-1">Toegestane formaten: .3mf / .gcode / .stl / .zip</div>
+            <div id="uploadMsg-{{ loop.index0 }}" class="text-xs mt-2 hidden"></div>
+          </div>
+
+          <!-- Fallback formulier (zonder JS) -->
+          <form method="POST" action="/upload" enctype="multipart/form-data" class="mt-2 flex items-center gap-2 text-sm">
+            <input type="hidden" name="printer_serial" value="{{ p.serial }}"><!-- <== was name="serial" -->
+            <input type="file" name="file" class="border rounded px-2 py-1 bg-white dark:bg-gray-900 dark:border-gray-700">
+            <button type="submit" class="px-3 h-9 rounded bg-blue-600 hover:bg-blue-700 text-white">Upload</button>
+          </form>
+        </div>
+
         <div class="mb-2">
           <input type="text" placeholder="Zoeken…"
                  class="file-search w-full border rounded px-2 py-1 text-sm bg-white dark:bg-gray-900 dark:border-gray-700"
@@ -172,12 +192,12 @@
                   <form method="POST" action="/start_print">
                     <input type="hidden" name="serial" value="{{ p.serial }}">
                     <input type="hidden" name="filename" value="{{ f }}">
-                    <button type="submit" class="text-blue-600 dark:text-blue-400 hover:underline">▶️ Start</button>
+                    <button type="submit" class="text-blue-600 dark:text-blue-400 hover:underline">Start</button>
                   </form>
                   <form method="POST" action="/delete_file">
                     <input type="hidden" name="serial" value="{{ p.serial }}">
                     <input type="hidden" name="filename" value="{{ f }}">
-                    <button type="submit" class="text-red-600 dark:text-red-400 hover:underline">🗑️ Verwijder</button>
+                    <button type="submit" class="text-red-600 dark:text-red-400 hover:underline">Verwijder</button>
                   </form>
                 </div>
               </div>
@@ -303,7 +323,7 @@
 <div id="addPrinterModal" class="fixed inset-0 bg-black/50 items-center justify-center hidden z-50">
   <div class="bg-white dark:bg-gray-800 w-full max-w-lg rounded-xl shadow-lg p-6 mx-4 relative">
     <button id="closeAddPrinter" class="absolute top-3 right-3 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white" aria-label="Sluiten">✕</button>
-    <h3 class="text-xl font-semibold mb-4">➕ Printer toevoegen</h3>
+    <h3 class="text-xl font-semibold mb-4">Printer toevoegen</h3>
     <form method="POST" action="/add_printer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <input name="name" placeholder="Naam" required class="border dark:border-gray-700 rounded px-3 py-2 bg-white dark:bg-gray-900">
       <input name="ip" placeholder="IP-adres" required class="border dark:border-gray-700 rounded px-3 py-2 bg-white dark:bg-gray-900">
@@ -367,7 +387,30 @@
     });
   });
 
-  // Bindings voor popups & zoeken (geen inline JS)
+  // ===== Upload via AJAX (drag & drop / file picker) =====
+  async function uploadViaAjax(serial, file, idx) {
+    const fd = new FormData();
+    fd.append('serial', serial);
+    fd.append('file', file);
+
+    const msg = document.getElementById('uploadMsg-' + idx);
+    if (msg) { msg.classList.remove('hidden'); msg.textContent = 'Uploaden…'; msg.className = 'text-xs mt-2 text-gray-600'; }
+
+    try {
+      const res = await fetch('/upload_file', { method: 'POST', body: fd });
+      const text = (await res.text()).trim();
+      if (res.ok && text === 'ok') {
+        if (msg) { msg.textContent = '✅ Upload gelukt. Lijst verversen…'; msg.className = 'text-xs mt-2 text-green-600'; }
+        setTimeout(() => location.reload(), 700);
+      } else {
+        if (msg) { msg.textContent = '❌ Fout: ' + text; msg.className = 'text-xs mt-2 text-red-600'; }
+      }
+    } catch(e) {
+      if (msg) { msg.textContent = '❌ Netwerkfout'; msg.className = 'text-xs mt-2 text-red-600'; }
+    }
+  }
+
+  // Bindings (geen inline JS)
   document.addEventListener('DOMContentLoaded', function(){
     // Openers
     document.querySelectorAll('.open-files').forEach(function(btn){
@@ -392,6 +435,32 @@
         if (which === 'files') closeFiles(pid);
         if (which === 'queue') closeQueue(pid);
       });
+    });
+
+    // Drag & drop / file picker
+    document.querySelectorAll('.dropzone').forEach(function(zone){
+      const idx = parseInt(zone.dataset.pid || '0', 10);
+      const serial = zone.dataset.serial;
+      const fileInput = zone.querySelector('.file-input');
+      const chooseBtn = zone.querySelector('.choose-file');
+
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('ring-2','ring-blue-500'); });
+      zone.addEventListener('dragenter', () => zone.classList.add('ring-2','ring-blue-500'));
+      zone.addEventListener('dragleave', () => zone.classList.remove('ring-2','ring-blue-500'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('ring-2','ring-blue-500');
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) uploadViaAjax(serial, f, idx);
+      });
+
+      if (chooseBtn && fileInput) {
+        chooseBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', () => {
+          const f = fileInput.files && fileInput.files[0];
+          if (f) uploadViaAjax(serial, f, idx);
+        });
+      }
     });
   });
 

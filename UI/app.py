@@ -59,6 +59,10 @@ def save_config(cfg: dict):
     except Exception as e:
         print("⚠️ Kon config niet schrijven:", e)
 
+def get_printer_by_serial(serial):
+    return next((p for p in printers if p.get("serial") == serial), None)
+
+
 @app.context_processor
 def inject_settings():
     """Maak app_settings overal beschikbaar in templates (voor dark mode e.d.)."""
@@ -629,25 +633,21 @@ def start_print_route():
         print(f"❌ Fout in start_print(): {e}")
         return f"❌ Fout bij printen: {e}", 500
 
-@app.route("/upload", methods=["POST"])
-def upload():
-    if 'file' not in request.files or 'serial' not in request.form:
-        return render_template("index.html", printers=printers, message="❌ Bestand of printer ontbreekt")
+@app.post("/upload")
+def upload_route():
+    file = request.files.get("file")
+    serial = request.form.get("printer_serial")  # <select name="printer_serial">
+    if not file:
+        return jsonify({"success": False, "error": "No file"}), 400
 
-    file = request.files['file']
-    serial = request.form['serial']
-    printer = next((p for p in printers if p['serial'] == serial), None)
+    pr = get_printer_by_serial(serial) if serial else None
+    if not pr:
+        return jsonify({"success": False, "error": "Unknown or missing printer"}), 400
 
-    if not printer:
-        return render_template("index.html", printers=printers, message="❌ Printer niet gevonden")
-    if file.filename == '':
-        return render_template("index.html", printers=printers, message="❌ Geen bestandsnaam")
-
-    result = upload_file_to_printer(file)
-    if result["success"]:
-        return redirect(url_for("index"))
-    else:
-        return render_template("index.html", printers=printers, message=f"❌ Fout: {result['error']}")
+    # ✅ geef de gevonden printer door
+    res = upload_file_to_printer(file, pr)
+    status = 200 if res.get("success") else 500
+    return jsonify(res), status
 
 @app.route("/upload_file", methods=["POST"])
 def upload_file_ajax():
@@ -663,7 +663,7 @@ def upload_file_ajax():
         printer = next((p for p in printers if p['serial'] == serial), None)
         if not printer:
             return "printer not found", 404
-        res = upload_file_to_printer(file)
+        res = upload_file_to_printer(file, printer)
         if res.get("success"):
             return "ok"
         return f"error: {res.get('error','unknown')}", 500
@@ -725,33 +725,50 @@ def collect_printer_files():
 # -------------------
 # Orders
 # -------------------
-@app.route("/orders", methods=["GET"])
+@app.route("/orders")
 def orders():
     mapping = read_mapping()
-    # normaliseer naar {ean, filename, printer_serial}
+
+    # normaliseer naar {ean, filename, printer_serial, bed_temp_threshold}
     mapping_list = []
     for k, v in mapping.items():
         if isinstance(v, dict):
             mapping_list.append({
                 "ean": k,
                 "filename": v.get("filename", ""),
-                "printer_serial": v.get("printer_serial", "")
+                "printer_serial": v.get("printer_serial", ""),
+                "bed_temp_threshold": v.get("bed_temp_threshold")
             })
         else:
-            mapping_list.append({"ean": k, "filename": v, "printer_serial": ""})
+            # backwards compatible met oude "ean": "bestand" structuur
+            mapping_list.append({
+                "ean": k,
+                "filename": v,
+                "printer_serial": "",
+                "bed_temp_threshold": None
+            })
 
     collect_printer_files()  # ook voor dropdown-bestanden
     items = load_history(limit=500)
-    return render_template("orders.html",
-                           mapping_list=sorted(mapping_list, key=lambda x: x["ean"]),
-                           items=items,
-                           printers=printers)
+
+    # default drempel uit config
+    cfg = load_config()
+    default_min_bed_temp = cfg.get("default_min_bed_temp", BED_TEMP_THRESHOLD)
+
+    return render_template(
+        "orders.html",
+        mapping_list=sorted(mapping_list, key=lambda x: x["ean"]),
+        items=items,
+        printers=printers,
+        default_min_bed_temp=default_min_bed_temp
+    )
 
 @app.post("/orders/map-add")
 def orders_map_add():
     ean = (request.form.get("ean") or "").strip()
     filename = (request.form.get("filename") or "").strip()
     printer_serial = (request.form.get("printer_serial") or "").strip()
+    thr_raw = (request.form.get("bed_temp_threshold") or "").strip()
 
     if not ean or not filename:
         flash("Vul zowel EAN als bestand in.", "danger"); return redirect(url_for("orders"))
@@ -760,11 +777,26 @@ def orders_map_add():
     if printer_serial and not any(p["serial"] == printer_serial for p in printers):
         flash("Onbekende printer.", "danger"); return redirect(url_for("orders"))
 
+    # Default uit config, daarna overschrijfbaar
+    cfg = load_config()
+    default_thr = float(cfg.get("default_min_bed_temp", BED_TEMP_THRESHOLD))
+    try:
+        thr = float(thr_raw) if thr_raw else default_thr
+    except Exception:
+        thr = default_thr
+    # clamp 20–110 °C
+    thr = max(20.0, min(110.0, thr))
+
     mapping = read_mapping()
-    mapping[ean] = {"filename": filename, "printer_serial": printer_serial}
+    mapping[ean] = {
+        "filename": filename,
+        "printer_serial": printer_serial,
+        "bed_temp_threshold": thr
+    }
     write_mapping(mapping)
-    flash(f"Mapping toegevoegd: {ean} → {filename} ({printer_serial or '–'})", "success")
+    flash(f"Mapping toegevoegd: {ean} → {filename} (temp: {thr:.0f}°C, printer: {printer_serial or '–'})", "success")
     return redirect(url_for("orders"))
+
 
 @app.post("/orders/map-update")
 def orders_map_update():
@@ -772,6 +804,7 @@ def orders_map_update():
     new_ean = (request.form.get("ean") or "").strip()
     filename = (request.form.get("filename") or "").strip()
     printer_serial = (request.form.get("printer_serial") or "").strip()
+    thr_raw = (request.form.get("bed_temp_threshold") or "").strip()
 
     if not original_ean:
         flash("Ontbrekende originele EAN.", "danger"); return redirect(url_for("orders"))
@@ -782,6 +815,14 @@ def orders_map_update():
     if printer_serial and not any(p["serial"] == printer_serial for p in printers):
         flash("Onbekende printer.", "danger"); return redirect(url_for("orders"))
 
+    cfg = load_config()
+    default_thr = float(cfg.get("default_min_bed_temp", BED_TEMP_THRESHOLD))
+    try:
+        thr = float(thr_raw) if thr_raw else default_thr
+    except Exception:
+        thr = default_thr
+    thr = max(20.0, min(110.0, thr))
+
     mapping = read_mapping()
     if original_ean not in mapping:
         flash("Originele EAN niet gevonden.", "danger"); return redirect(url_for("orders"))
@@ -790,9 +831,14 @@ def orders_map_update():
 
     if new_ean != original_ean:
         mapping.pop(original_ean, None)
-    mapping[new_ean] = {"filename": filename, "printer_serial": printer_serial}
+
+    mapping[new_ean] = {
+        "filename": filename,
+        "printer_serial": printer_serial,
+        "bed_temp_threshold": thr
+    }
     write_mapping(mapping)
-    flash(f"Mapping opgeslagen: {new_ean} → {filename} ({printer_serial or '–'})", "success")
+    flash(f"Mapping opgeslagen: {new_ean} → {filename} (temp: {thr:.0f}°C, printer: {printer_serial or '–'})", "success")
     return redirect(url_for("orders"))
 
 @app.post("/orders/map-delete")

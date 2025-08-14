@@ -1,7 +1,7 @@
 {
   "01P00A3B2600141": [
     {
-      "filename": "bookholder.gcode.3mf",
+      "filename": "opzetborstel.gcode.3mf",
       "count": 1,
       "printed": 0,
       "status": "printing",
@@ -26,6 +26,57 @@
       "count": 1,
       "printed": 0,
       "status": "waiting",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "LPHouders.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "opzetborstel.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "opzetborstel.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "opzetborstel.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "opzetborstel.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "LPHouders.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
+    }
+  ],
+  "01P09C461200476": [
+    {
+      "filename": "Boekensteun.gcode.3mf",
+      "count": 5,
+      "printed": 0,
+      "status": "printing",
       "min_bed_temp": 35.0
     }
   ]

@@ -7,28 +7,29 @@
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold tracking-tight">Orders</h1>
-      <p class="text-sm text-gray-500">Koppel EAN’s aan 3MF‑bestanden en (optioneel) een vaste printer. Bekijk ook je printgeschiedenis.</p>
+      <p class="text-sm text-gray-500">Koppel EAN’s aan 3MF‑bestanden en (optioneel) een vaste printer. Bekijk ook je
+        printgeschiedenis.</p>
     </div>
     <a href="{{ url_for('orders_history_csv') }}"
-       class="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
+      class="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50">
       ⬇️ Download CSV
     </a>
   </div>
 
   <!-- Flash messages -->
   {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="space-y-2">
-        {% for category, msg in messages %}
-          <div class="rounded-lg border px-3 py-2 text-sm
+  {% if messages %}
+  <div class="space-y-2">
+    {% for category, msg in messages %}
+    <div class="rounded-lg border px-3 py-2 text-sm
                       {% if category=='danger' %} border-red-300 bg-red-50 text-red-800
                       {% elif category=='success' %} border-green-300 bg-green-50 text-green-800
                       {% else %} border-gray-300 bg-gray-50 text-gray-800 {% endif %}">
-            {{ msg }}
-          </div>
-        {% endfor %}
-      </div>
-    {% endif %}
+      {{ msg }}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   {% endwith %}
 
   <!-- Cards -->
@@ -43,36 +44,44 @@
         <form method="post" action="{{ url_for('orders_map_add') }}" class="px-5 py-4 space-y-3">
           <div class="space-y-1">
             <label class="text-sm font-medium">EAN</label>
-            <input name="ean" type="text" inputmode="numeric" pattern="\d*"
-                   placeholder="Alleen cijfers" required
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <input name="ean" type="text" inputmode="numeric" pattern="\d*" placeholder="Alleen cijfers" required
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
 
           <div class="space-y-1">
             <label class="text-sm font-medium">Bestand (van printer)</label>
             <select name="filename" required
-                    class="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="" disabled selected>Kies bestand…</option>
               {% for p in printers %}
-                {% if p.files %}
-                  <optgroup label="{{ p.name }}">
-                    {% for f in p.files %}
-                      <option value="{{ f }}">{{ f }}</option>
-                    {% endfor %}
-                  </optgroup>
-                {% endif %}
+              {% if p.files %}
+              <optgroup label="{{ p.name }}">
+                {% for f in p.files %}
+                <option value="{{ f }}">{{ f }}</option>
+                {% endfor %}
+              </optgroup>
+              {% endif %}
               {% endfor %}
             </select>
             <p class="text-xs text-gray-500">De lijst toont de bestanden die nu op je printers staan.</p>
           </div>
 
           <div class="space-y-1">
+            <label class="text-sm font-medium">Bed °C</label>
+            <input name="bed_temp_threshold" type="number" min="20" max="110" step="1"
+              value="{{ default_min_bed_temp }}"
+              class="w-32 rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <p class="text-xs text-gray-500">Onder deze temperatuur start de schuif voor dit bestand.</p>
+          </div>
+
+
+          <div class="space-y-1">
             <label class="text-sm font-medium">Printer (optioneel)</label>
             <select name="printer_serial"
-                    class="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
               <option value="" selected>Default watcher</option>
               {% for p in printers %}
-                <option value="{{ p.serial }}">{{ p.name }} ({{ p.serial }})</option>
+              <option value="{{ p.serial }}">{{ p.name }} ({{ p.serial }})</option>
               {% endfor %}
             </select>
             <p class="text-xs text-gray-500">Laat leeg om de standaardprinter van de watcher te gebruiken.</p>
@@ -80,7 +89,7 @@
 
           <div class="pt-2">
             <button type="submit"
-                    class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700">
+              class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700">
               Koppeling opslaan
             </button>
           </div>
@@ -98,7 +107,7 @@
           </div>
           <div class="w-64">
             <input id="map-search" type="text" placeholder="Zoek op EAN of bestandsnaam…"
-                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
           </div>
         </div>
 
@@ -109,83 +118,98 @@
                 <tr>
                   <th class="px-4 py-3 text-left">EAN</th>
                   <th class="px-4 py-3 text-left">Bestand</th>
+                  <th class="px-4 py-3 text-left">Bed °C</th>
                   <th class="px-4 py-3 text-left">Printer</th>
-                  <th class="px-4 py-3"></th>
+                  <th class="px-4 py-3"></th> <!-- Acties -->
                 </tr>
               </thead>
+
               <tbody id="map-table" class="divide-y divide-gray-100">
-  {% for m in mapping_list %}
-  {% set fid = "maprow-" ~ loop.index %}
-  <tr class="hover:bg-gray-50">
-    <!-- Form over de eerste 3 kolommen -->
-    <td class="px-4 py-2 align-top">
-      <form id="{{ fid }}" method="post" action="{{ url_for('orders_map_update') }}" class="grid grid-cols-1 md:grid-cols-12 gap-2 items-start">
-        <input type="hidden" name="original_ean" value="{{ m.ean }}">
+                {% for m in mapping_list %}
+                {% set fid = "maprow-" ~ loop.index %}
+                <tr class="hover:bg-gray-50">
 
-        <!-- EAN -->
-        <input name="ean" value="{{ m.ean }}" inputmode="numeric" pattern="\d*"
-               class="md:col-span-3 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                  <!-- 1) EAN -->
+                  <td class="px-4 py-2 align-middle">
+                    <!-- Leeg form-element om naar te verwijzen -->
+                    <form id="{{ fid }}" method="post" action="{{ url_for('orders_map_update') }}"></form>
+                    <!-- verplichte hidden -->
+                    <input type="hidden" name="original_ean" value="{{ m.ean }}" form="{{ fid }}">
+                    <input name="ean" value="{{ m.ean }}" inputmode="numeric" pattern="\d*"
+                      class="w-full rounded-lg border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 tabular-nums"
+                      required form="{{ fid }}">
+                  </td>
 
-        <!-- Bestand -->
-        <select name="filename"
-                class="md:col-span-5 rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-full"
-                required>
-          {% if m.filename %}
-            <option value="{{ m.filename }}">{{ m.filename }}</option>
-            <option disabled>──────────</option>
-          {% endif %}
-          {% for p in printers %}
-            {% if p.files %}
-              <optgroup label="{{ p.name }}">
-                {% for f in p.files %}
-                  <option value="{{ f }}" {% if f == m.filename %}selected{% endif %}>{{ f }}</option>
+                  <!-- 2) Bestand -->
+                  <td class="px-4 py-2 align-middle">
+                    <select name="filename" required form="{{ fid }}"
+                      class="w-full rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      {% if m.filename %}
+                      <option value="{{ m.filename }}">{{ m.filename }}</option>
+                      <option disabled>──────────</option>
+                      {% endif %}
+                      {% for p in printers %}
+                      {% if p.files %}
+                      <optgroup label="{{ p.name }}">
+                        {% for f in p.files %}
+                        <option value="{{ f }}" {% if f==m.filename %}selected{% endif %}>{{ f }}</option>
+                        {% endfor %}
+                      </optgroup>
+                      {% endif %}
+                      {% endfor %}
+                    </select>
+                  </td>
+
+                  <!-- 3) Bed °C -->
+                  <td class="px-4 py-2 align-middle">
+                    <input name="bed_temp_threshold" type="number" min="20" max="110" step="1"
+                      value="{{ (m.bed_temp_threshold if m.bed_temp_threshold is not none else default_min_bed_temp) }}"
+                      class="w-28 rounded-lg border border-gray-300 px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-indigo-500 tabular-nums"
+                      aria-label="Min. bedtemp (°C)" form="{{ fid }}">
+                  </td>
+
+                  <!-- 4) Printer -->
+                  <td class="px-4 py-2 align-middle">
+                    <select name="printer_serial" form="{{ fid }}"
+                      class="w-full rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                      <option value="" {% if not m.printer_serial %}selected{% endif %}>Default watcher</option>
+                      {% for p in printers %}
+                      <option value="{{ p.serial }}" {% if m.printer_serial==p.serial %}selected{% endif %}>
+                        {{ p.name }} ({{ p.serial }})
+                      </option>
+                      {% endfor %}
+                    </select>
+                  </td>
+
+                  <!-- 5) Acties -->
+                  <td class="px-4 py-2 align-middle text-right whitespace-nowrap">
+                    <div class="inline-flex items-center gap-2">
+                      <button type="submit" form="{{ fid }}"
+                        class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
+                        Opslaan
+                      </button>
+                      <form method="post" action="{{ url_for('orders_map_delete') }}"
+                        onsubmit="return confirm('Mapping voor {{ m.ean }} verwijderen?');" class="inline">
+                        <input type="hidden" name="ean" value="{{ m.ean }}">
+                        <button type="submit"
+                          class="inline-flex items-center rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50">
+                          Verwijderen
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="5" class="px-4 py-6 text-center text-gray-500">
+                    Nog geen mappings. Voeg je eerste koppeling toe in het blok links.
+                  </td>
+                </tr>
                 {% endfor %}
-              </optgroup>
-            {% endif %}
-          {% endfor %}
-        </select>
+              </tbody>
 
-        <!-- Printer -->
-        <select name="printer_serial"
-                class="md:col-span-4 rounded-lg border border-gray-300 px-2 py-1 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <option value="" {% if not m.printer_serial %}selected{% endif %}>Default watcher</option>
-          {% for p in printers %}
-            <option value="{{ p.serial }}" {% if m.printer_serial == p.serial %}selected{% endif %}>
-              {{ p.name }} ({{ p.serial }})
-            </option>
-          {% endfor %}
-        </select>
-      </form>
-    </td>
 
-    <!-- Acties -->
-    <td class="px-4 py-2 align-middle text-right whitespace-nowrap">
-      <div class="inline-flex items-center gap-2">
-        <!-- Koppelt aan form boven via form="fid" -->
-        <button type="submit" form="{{ fid }}"
-                class="inline-flex items-center rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
-          Opslaan
-        </button>
-
-        <form method="post" action="{{ url_for('orders_map_delete') }}"
-              onsubmit="return confirm('Mapping voor {{ m.ean }} verwijderen?');" class="inline">
-          <input type="hidden" name="ean" value="{{ m.ean }}">
-          <button type="submit"
-                  class="inline-flex items-center rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50">
-            Verwijderen
-          </button>
-        </form>
-      </div>
-    </td>
-  </tr>
-  {% else %}
-  <tr>
-    <td colspan="4" class="px-4 py-6 text-center text-gray-500">
-      Nog geen mappings. Voeg je eerste koppeling toe in het blok links.
-    </td>
-  </tr>
-  {% endfor %}
-</tbody>
 
             </table>
           </div>

@@ -79,9 +79,9 @@ bool schuifVastgemeld = false;
 
 const unsigned long WARMUP_MS = 5000;
 
-const uint16_t SGY_TOP_THRESHOLD     = 90;   // drempel bovenstop
+const uint16_t SGY_TOP_THRESHOLD     = 70;   // drempel bovenstop
 const int      SGY_TOP_SAMPLES       = 30;    // ~1s bij 50ms
-const uint16_t SGY_IMPACT_THRESHOLD  = 150;   // drempel printbed raken
+const uint16_t SGY_IMPACT_THRESHOLD  = 140;   // drempel printbed raken
 const int      SGY_CONFIRM_SAMPLES   = 15;    // ~0.5s bij 50ms
 
 int impactYUpCount = 0;
@@ -230,7 +230,7 @@ void schuifMechanisme() {
               stepperY.setCurrentPosition(stepperY.currentPosition());
 
               // nèt iets terug omhoog om niet te blijven drukken
-              long halveRotatie = 10000;
+              long halveRotatie = 6000;
               stepperY.moveTo(stepperY.currentPosition() - halveRotatie);
               while (stepperY.distanceToGo() != 0) stepperY.run();
 
