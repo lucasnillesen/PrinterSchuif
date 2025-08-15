@@ -370,5 +370,23 @@
 "filename": "LPHouders.gcode.3mf",
 "quantity": 1,
 "printer_serial": "01P00A3B2600141"
+},
+{
+"timestamp": "2025-08-15T17:38:41Z",
+"orderItemId": "3765053045",
+"ean": "6152856789715",
+"filename": "koffiefilter.gcode.3mf",
+"quantity": 1,
+"printer_serial": "01P00A3B2600141",
+"min_bed_temp": 30.0
+},
+{
+"timestamp": "2025-08-15T17:38:41Z",
+"orderItemId": "3765045882",
+"ean": "6152846371302",
+"filename": "koffiefilter.gcode.3mf",
+"quantity": 1,
+"printer_serial": "01P00A3B2600141",
+"min_bed_temp": 30.0
 }
 ]

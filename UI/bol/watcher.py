@@ -103,7 +103,13 @@ class BolOrderWatcher:
                                 target_serial = entry.get("printer_serial") or self.printer_serial
                                 # Per-mapping override voor min. bedtemp
                                 try:
-                                    thr = entry.get("bed_temp_threshold", None)
+                                    # Support both new and legacy keys.  The UI historically stored
+                                    # per‑mapping thresholds under ``bed_temp_threshold`` while the
+                                    # queue uses ``min_bed_temp``.  Prefer the explicit key, but
+                                    # fall back to ``min_bed_temp`` for backwards compatibility.
+                                    thr = entry.get("bed_temp_threshold")
+                                    if thr is None:
+                                        thr = entry.get("min_bed_temp")
                                     if thr is not None:
                                         min_temp = float(thr)
                                 except Exception:

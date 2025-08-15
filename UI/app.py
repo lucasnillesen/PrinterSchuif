@@ -24,6 +24,13 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# Configure a secret key for session management and flash messages.
+# Without a secret key Flask will raise an error when using `flash` or the session.
+# If an environment variable SECRET_KEY is set it will be used; otherwise a
+# deterministic but non‑guessable fallback is provided. Users should override
+# this in production.
+app.secret_key = os.environ.get('SECRET_KEY', 'replace-this-secret-key')
+
 # -------------------
 # Config & opslag
 # -------------------
@@ -689,14 +696,33 @@ def delete_file():
 # -------------------
 @app.route("/activate", methods=["POST"])
 def activate():
-    serial = request.form.get("serial")
+    """
+    Trigger the slide mechanism for a given printer serial.  Instead of
+    returning a JSON payload (which browsers render as a pretty JSON page),
+    we perform the action and redirect back to the index page with a flash
+    message to inform the user of the result.  This avoids confusing pretty
+    print views when submitting the form directly via POST.
+    """
+    serial = (request.form.get("serial") or "").strip()
     if not serial:
-        return jsonify({"result": "missing_serial"})
-    for p in printers:
-        if p["serial"] == serial:
-            success = schuif_aansturen(p["esp_ip"])
-            return jsonify({"result": "ok" if success else "fail"})
-    return jsonify({"result": "not found"})
+        flash("Geen printer‑serial opgegeven.", "danger")
+        return redirect(url_for("index"))
+    printer = next((p for p in printers if p.get("serial") == serial), None)
+    if not printer:
+        flash("Printer niet gevonden.", "danger")
+        return redirect(url_for("index"))
+
+    success = False
+    try:
+        success = schuif_aansturen(printer.get("esp_ip"))
+    except Exception as e:
+        print(f"Activate error: {e}")
+
+    if success:
+        flash(f"Schuif voor {printer['name']} geactiveerd.", "success")
+    else:
+        flash(f"Fout bij activeren van de schuif van {printer['name']}", "danger")
+    return redirect(url_for("index"))
 
 # -------------------
 # Data / overzicht

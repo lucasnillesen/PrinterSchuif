@@ -69,6 +69,20 @@
       "printed": 0,
       "status": "waiting",
       "min_bed_temp": 30.0
+    },
+    {
+      "filename": "koffiefilter.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
+    },
+    {
+      "filename": "koffiefilter.gcode.3mf",
+      "count": 1,
+      "printed": 0,
+      "status": "waiting",
+      "min_bed_temp": 30.0
     }
   ],
   "01P09C461200476": [
